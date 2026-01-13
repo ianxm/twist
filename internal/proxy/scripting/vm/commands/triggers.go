@@ -40,9 +40,6 @@ func cmdSetTextLineTrigger(vm types.VMInterface, params []*types.CommandParam) e
 	if label == "" {
 		return vm.Error("SETTEXTLINETRIGGER requires a non-empty label")
 	}
-	if pattern == "" {
-		return vm.Error("SETTEXTLINETRIGGER requires a non-empty pattern")
-	}
 
 	// Create TextLineTrigger with Pascal-compatible behavior
 	trigger := &types.TextLineTrigger{

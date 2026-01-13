@@ -95,6 +95,7 @@ func TestSetTextLineTrigger_RealIntegration(t *testing.T) {
 
 	script := `
 		settextlinetrigger 1 "echo 'Line trigger activated'" "prompt"
+		settextlinetrigger 1 "echo 'Line trigger activated'" ""
 		echo "Line trigger set"
 	`
 
