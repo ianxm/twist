@@ -3,6 +3,7 @@ package scripting
 import (
 	"fmt"
 	"strings"
+	"twist/internal/api"
 	"twist/internal/log"
 	"twist/internal/proxy/database"
 	"twist/internal/proxy/interfaces"
@@ -180,8 +181,25 @@ func (g *GameAdapter) GetNearestWarps(sector int, count int) ([]int, error) {
 
 // GetCurrentSector implements GameInterface
 func (g *GameAdapter) GetCurrentSector() int {
-	// TODO: Get current sector from game state
-	return 1
+	if g.db == nil {
+		return 1 // Default fallback
+	}
+
+	playerStats, err := g.db.LoadPlayerStats()
+	if err != nil {
+		log.Error("Failed to load player stats for current sector", "error", err)
+		return 1 // Default fallback
+	}
+
+	return playerStats.CurrentSector
+}
+
+// GetPlayerStats returns current player stats from database
+func (g *GameAdapter) GetPlayerStats() (api.PlayerStatsInfo, error) {
+	if g.db == nil {
+		return api.PlayerStatsInfo{}, fmt.Errorf("database not available")
+	}
+	return g.db.GetPlayerStatsInfo()
 }
 
 // GetCurrentPrompt implements GameInterface

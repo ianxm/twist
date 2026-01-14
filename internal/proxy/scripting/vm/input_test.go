@@ -2,6 +2,7 @@ package vm
 
 import (
 	"testing"
+	"twist/internal/api"
 	"twist/internal/proxy/scripting/types"
 )
 
@@ -26,6 +27,7 @@ func (m *MockGameInterface) GetNearestWarps(sector int, count int) ([]int, error
 }
 func (m *MockGameInterface) GetCurrentSector() int    { return 1 }
 func (m *MockGameInterface) GetCurrentPrompt() string { return "" }
+func (m *MockGameInterface) GetPlayerStats() (api.PlayerStatsInfo, error) { return api.PlayerStatsInfo{}, nil }
 func (m *MockGameInterface) GetLastOutput() string    { return "" }
 func (m *MockGameInterface) GetSystemConstants() types.SystemConstantsInterface {
 	return &MockSystemConstants{}
