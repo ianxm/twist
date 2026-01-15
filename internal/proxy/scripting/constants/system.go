@@ -230,7 +230,11 @@ func (sc *SystemConstants) updateDynamicConstant(name string) {
 	// CURRENTLINE and CURRENTANSILINE are NOT dynamically updated
 	// They are only updated via explicit UpdateCurrentLine() calls from the TWXParser
 	// This ensures triggers see the correct line that was being processed when they fired
-	case "TURNS", "CREDITS", "FIGHTERS", "SHIELDS", "TOTALHOLDS", "OREHOLDS", "ORGHOLDS", "EQUHOLDS", "COLHOLDS", "EMPTYHOLDS":
+	case "TURNS", "CREDITS", "FIGHTERS", "SHIELDS", "TOTALHOLDS", "OREHOLDS", "ORGHOLDS",
+		"EQUHOLDS", "COLHOLDS", "EMPTYHOLDS", "PHOTONS", "ARMIDS", "LIMPETS", "GENTORPS",
+		"TWARPTYPE", "CLOAKS", "BEACONS", "ATOMICS", "CORBOMITE", "EPROBES", "MINEDISR",
+		"PSYCHICPROBE", "PLANETSCANNER", "SCANTYPE", "ALIGNMENT", "EXPERIENCE", "CORP",
+		"SHIPNUMBER", "SHIPCLASS":
 		sc.updatePlayerStatsConstants()
 	case "SECTOR.WARPS", "SECTOR.WARPCOUNT", "SECTOR.DENSITY", "SECTOR.NAVHAZ",
 		"SECTOR.EXPLORED", "SECTOR.ANOMALY", "SECTOR.BEACON", "SECTOR.CONSTELLATION":
@@ -336,6 +340,34 @@ func (sc *SystemConstants) updatePlayerStatsConstants() {
 	// Calculate empty holds
 	emptyHolds := ps.TotalHolds - (ps.OreHolds + ps.OrgHolds + ps.EquHolds + ps.ColHolds)
 	sc.constants["EMPTYHOLDS"] = types.NewNumberValue(float64(emptyHolds))
+
+	sc.constants["PHOTONS"] = types.NewNumberValue(float64(ps.Photons))
+	sc.constants["ARMIDS"] = types.NewNumberValue(float64(ps.Armids))
+	sc.constants["LIMPETS"] = types.NewNumberValue(float64(ps.Limpets))
+	sc.constants["GENTORPS"] = types.NewNumberValue(float64(ps.GenTorps))
+	sc.constants["TWARPTYPE"] = types.NewNumberValue(float64(ps.TwarpType))
+	sc.constants["CLOAKS"] = types.NewNumberValue(float64(ps.Cloaks))
+	sc.constants["BEACONS"] = types.NewNumberValue(float64(ps.Beacons))
+	sc.constants["ATOMICS"] = types.NewNumberValue(float64(ps.Atomics))
+	sc.constants["CORBOMITE"] = types.NewNumberValue(float64(ps.Corbomite))
+	sc.constants["EPROBES"] = types.NewNumberValue(float64(ps.Eprobes))
+	sc.constants["MINEDISR"] = types.NewNumberValue(float64(ps.MineDisr))
+	if ps.PsychicProbe {
+		sc.constants["PSYCHICPROBE"] = types.NewNumberValue(1)
+	} else {
+		sc.constants["PSYCHICPROBE"] = types.NewNumberValue(0)
+	}
+	if ps.PlanetScanner {
+		sc.constants["PLANETSCANNER"] = types.NewNumberValue(1)
+	} else {
+		sc.constants["PLANETSCANNER"] = types.NewNumberValue(0)
+	}
+	sc.constants["SCANTYPE"] = types.NewNumberValue(float64(ps.ScanType))
+	sc.constants["ALIGNMENT"] = types.NewNumberValue(float64(ps.Alignment))
+	sc.constants["EXPERIENCE"] = types.NewNumberValue(float64(ps.Experience))
+	sc.constants["CORP"] = types.NewNumberValue(float64(ps.Corp))
+	sc.constants["SHIPNUMBER"] = types.NewNumberValue(float64(ps.ShipNumber))
+	sc.constants["SHIPCLASS"] = types.NewStringValue(ps.ShipClass)
 }
 
 // ListConstants returns all available constants
