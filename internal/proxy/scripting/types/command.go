@@ -1,5 +1,9 @@
 package types
 
+import (
+	"twist/internal/api"
+)
+
 // ParameterType represents the type of a command parameter
 type ParameterType int
 
@@ -113,6 +117,7 @@ type GameInterface interface {
 	// Current state
 	GetCurrentSector() int
 	GetCurrentPrompt() string
+	GetPlayerStats() (api.PlayerStatsInfo, error)
 
 	// Network
 	SendCommand(cmd string) error

@@ -93,7 +93,7 @@ func (sc *SystemConstants) initializeConstants() {
 	sc.constants["ALPHACENTAURI"] = types.NewNumberValue(2)
 	sc.constants["RYLOS"] = types.NewNumberValue(3)
 
-	// Player Status Constants (will be dynamic in real implementation)
+	// Player Status Constants
 	sc.constants["TURNS"] = types.NewNumberValue(0)
 	sc.constants["CREDITS"] = types.NewNumberValue(0)
 	sc.constants["FIGHTERS"] = types.NewNumberValue(0)
@@ -230,6 +230,8 @@ func (sc *SystemConstants) updateDynamicConstant(name string) {
 	// CURRENTLINE and CURRENTANSILINE are NOT dynamically updated
 	// They are only updated via explicit UpdateCurrentLine() calls from the TWXParser
 	// This ensures triggers see the correct line that was being processed when they fired
+	case "TURNS", "CREDITS", "FIGHTERS", "SHIELDS", "TOTALHOLDS", "OREHOLDS", "ORGHOLDS", "EQUHOLDS", "COLHOLDS", "EMPTYHOLDS":
+		sc.updatePlayerStatsConstants()
 	case "SECTOR.WARPS", "SECTOR.WARPCOUNT", "SECTOR.DENSITY", "SECTOR.NAVHAZ",
 		"SECTOR.EXPLORED", "SECTOR.ANOMALY", "SECTOR.BEACON", "SECTOR.CONSTELLATION":
 		sc.updateSectorConstants()
@@ -305,6 +307,35 @@ func (sc *SystemConstants) updatePortConstants() {
 		sc.constants["PORT.NAME"] = types.NewStringValue("")
 		sc.constants["PORT.CLASS"] = types.NewNumberValue(0)
 	}
+}
+
+// updatePlayerStatsConstants updates player stats such as turns and credits
+func (sc *SystemConstants) updatePlayerStatsConstants() {
+	if sc.gameInterface == nil {
+		return
+	}
+
+	ps, err := sc.gameInterface.GetPlayerStats()
+	if err != nil {
+		log.Error("failed to get player stats", "error", err)
+	} else {
+		log.Info("playerStats", ps)
+	}
+
+	// update constants based on DB
+	sc.constants["TURNS"] = types.NewNumberValue(float64(ps.Turns))
+	sc.constants["CREDITS"] = types.NewNumberValue(float64(ps.Credits))
+	sc.constants["FIGHTERS"] = types.NewNumberValue(float64(ps.Fighters))
+	sc.constants["SHIELDS"] = types.NewNumberValue(float64(ps.Shields))
+	sc.constants["TOTALHOLDS"] = types.NewNumberValue(float64(ps.TotalHolds))
+	sc.constants["OREHOLDS"] = types.NewNumberValue(float64(ps.OreHolds))
+	sc.constants["ORGHOLDS"] = types.NewNumberValue(float64(ps.OrgHolds))
+	sc.constants["EQUHOLDS"] = types.NewNumberValue(float64(ps.EquHolds))
+	sc.constants["COLHOLDS"] = types.NewNumberValue(float64(ps.ColHolds))
+
+	// Calculate empty holds
+	emptyHolds := ps.TotalHolds - (ps.OreHolds + ps.OrgHolds + ps.EquHolds + ps.ColHolds)
+	sc.constants["EMPTYHOLDS"] = types.NewNumberValue(float64(emptyHolds))
 }
 
 // ListConstants returns all available constants

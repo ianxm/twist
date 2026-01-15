@@ -212,7 +212,7 @@ func (l *Lexer) readString() string {
 func (l *Lexer) readIdentifier() string {
 	var result strings.Builder
 
-	for !l.eof && (unicode.IsLetter(l.ch) || unicode.IsDigit(l.ch) || l.ch == '_') {
+	for !l.eof && (unicode.IsLetter(l.ch) || unicode.IsDigit(l.ch) || l.ch == '_' || l.ch == '.' ) {
 		result.WriteRune(l.ch)
 		l.nextChar()
 	}
@@ -238,7 +238,7 @@ func (l *Lexer) readVariable() string {
 	result.WriteRune(l.ch) // include the $
 	l.nextChar()
 
-	for !l.eof && (unicode.IsLetter(l.ch) || unicode.IsDigit(l.ch) || l.ch == '_' || l.ch == '.') {
+	for !l.eof && (unicode.IsLetter(l.ch) || unicode.IsDigit(l.ch) || l.ch == '_' || l.ch == '.' || l.ch == '~') {
 		result.WriteRune(l.ch)
 		l.nextChar()
 	}
@@ -258,7 +258,7 @@ func (l *Lexer) readLabel() string {
 		l.nextChar()
 	}
 
-	for !l.eof && (unicode.IsLetter(l.ch) || unicode.IsDigit(l.ch) || l.ch == '_') {
+	for !l.eof && (unicode.IsLetter(l.ch) || unicode.IsDigit(l.ch) || l.ch == '_' || l.ch == '~') {
 		result.WriteRune(l.ch)
 		l.nextChar()
 	}
