@@ -134,7 +134,7 @@ func (m *Manager) ProcessTextLine(line string) (bool, error) {
 	matched := false
 	for _, trigger := range triggers {
 		log.Debug("TEXTLINE TRIGGER CHECKING", "id", trigger.GetID(), "pattern", trigger.GetValue(), "line", line, "active", trigger.IsActive())
-		if trigger.Matches(line) {
+		if trigger.Matches("") || trigger.Matches(line) {
 			log.Info("TEXTLINE TRIGGER FIRED", "id", trigger.GetID(), "pattern", trigger.GetValue(), "line", line)
 			if err := trigger.Execute(m.vm); err != nil {
 				return false, err
