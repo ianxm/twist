@@ -2365,8 +2365,8 @@ func (p *TWXParser) validateWarpSector(sectorNum int) bool {
 	// NOTE: Don't validate against database max sectors as it prevents discovering new sectors
 	// The database only knows about sectors that have already been visited/parsed
 
-	// Reasonable upper bound check (Trade Wars maximum is 20,000 sectors)
-	if sectorNum > 20000 {
+	// Reasonable upper bound check (Trade Wars maximum is 30,000 sectors)
+	if sectorNum > 30000 {
 		return false
 	}
 

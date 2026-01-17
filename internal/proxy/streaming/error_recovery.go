@@ -31,8 +31,8 @@ func (p *TWXParser) safeStringIndex(s, substr string) int {
 
 // validateSectorNumber ensures sector numbers are within reasonable bounds
 func (p *TWXParser) validateSectorNumber(sectorNum int) bool {
-	// TWX typically handles sectors 1-20000, but allow flexibility
-	if sectorNum < 1 || sectorNum > 50000 {
+	// TWX typically handles sectors 1-30000, but allow flexibility
+	if sectorNum < 1 || sectorNum > 30000 {
 		return false
 	}
 	return true
