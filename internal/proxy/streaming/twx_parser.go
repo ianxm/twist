@@ -1634,7 +1634,7 @@ func (p *TWXParser) processDensityLineTracker(line string) {
 	// Parse density (parameter 4, remove commas)
 	densityStr := p.getParameter(x, 4)
 	densityStr = strings.ReplaceAll(densityStr, ",", "")
-	if density := p.parseIntSafe(densityStr); density > 0 {
+	if density := p.parseIntSafe(densityStr); density > -1 {
 		densityTracker.SetDensity(density)
 	}
 
