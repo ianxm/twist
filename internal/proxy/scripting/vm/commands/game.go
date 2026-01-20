@@ -32,6 +32,7 @@ func RegisterGameCommands(vm CommandRegistry) {
 
 	// Game data commands - TWX compatibility
 	vm.RegisterCommand("SLEEP", 1, 1, []types.ParameterType{types.ParamValue}, cmdSleep)
+	vm.RegisterCommand("GETCURRENTSECTOR", 1, 1, []types.ParameterType{types.ParamVar}, cmdGetCurrentSector)
 	vm.RegisterCommand("GETSECTOR", 2, 2, []types.ParameterType{types.ParamValue, types.ParamVar}, cmdGetSector)
 }
 
@@ -277,10 +278,18 @@ func cmdGetCurrentSector(vm types.VMInterface, params []*types.CommandParam) err
 		return vm.Error("GETCURRENTSECTOR requires exactly 1 parameter: result_var")
 	}
 
-	// Mock sector value for testing
+	// Get sector data from game interface
+	gameInterface := vm.GetGameInterface()
+	log.Info("cmdGetSector: game interface", "gameInterface", gameInterface)
+	if gameInterface == nil {
+		log.Info("cmdGetSector: ERROR - gameInterface is nil!")
+		return vm.Error("Game interface not available")
+	}
+	sectorIndex := gameInterface.GetCurrentSector()
+
 	vm.SetVariable(params[0].VarName, &types.Value{
 		Type:   types.NumberType,
-		Number: 1,
+		Number: float64(sectorIndex),
 	})
 
 	return nil
