@@ -14,6 +14,15 @@ const (
 	FtNone
 )
 
+func (f TFighterType) String() string {
+	switch f {
+	case FtToll: return "Toll"
+	case FtDefensive: return "Defensive"
+	case FtOffensive: return "Offensive"
+	default: return "Unknown"
+	}
+}
+
 // TSectorExploredType matches TWX TSectorExploredType
 type TSectorExploredType int
 

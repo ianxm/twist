@@ -457,8 +457,10 @@ func (p *TWXParser) parseSectorMines(line string) {
 
 	// Parse format: "Mines   : 100 Limpet Mines (belong to Kirk)"
 	//           or: "Mines   : 50 Armid Mines, 25 Limpet Mines (belong to Spock)"
+	//	     or: "Mines   : 75 (Type 1 Armid) (belong to your Corp)"
+	//	     or: "Mines   : 75 (Type 1 Armid) (yours)"
 
-	if !strings.HasPrefix(line, "Mines   : ") {
+	if !strings.HasPrefix(line, "Mines   : ") || p.sectorTracker == nil {
 		return
 	}
 
@@ -469,23 +471,18 @@ func (p *TWXParser) parseSectorMines(line string) {
 	mineInfo := line[10:] // Remove "Mines   : "
 
 	// Extract owner from parentheses
+	start := strings.Index(mineInfo, "belong to")
 	owner := ""
-	if parenStart := strings.Index(mineInfo, "("); parenStart >= 0 {
-		parenEnd := strings.Index(mineInfo, ")")
-		if parenEnd > parenStart {
-			ownerInfo := mineInfo[parenStart+1 : parenEnd]
-			if strings.HasPrefix(ownerInfo, "belong to ") {
-				owner = ownerInfo[10:] // Remove "belong to "
-			} else {
-				owner = ownerInfo
-			}
-			// Remove owner info for parsing
-			mineInfo = strings.TrimSpace(mineInfo[:parenStart])
-		}
+	if start == -1 {
+		start = strings.Index(mineInfo, "(yours)")
+		owner = "yours"
+	} else {
+		start += 10
+		end := strings.Index(mineInfo[start:], ")")
+		owner = mineInfo[start : start+end]
 	}
 
-	// Split by commas to handle multiple mine types
-	mineTypes := strings.Split(mineInfo, ",")
+	mineTypes := strings.Split(mineInfo[:start], ",")
 
 	for _, mineStr := range mineTypes {
 		mineStr = strings.TrimSpace(mineStr)
@@ -493,16 +490,17 @@ func (p *TWXParser) parseSectorMines(line string) {
 			continue
 		}
 
-		mine := MineInfo{Owner: owner}
-
 		// Parse quantity and type (e.g., "100 Limpet Mines")
 		parts := strings.Fields(mineStr)
 		if len(parts) >= 3 {
-			mine.Quantity = p.parseIntSafeWithCommas(parts[0])
-			mine.Type = parts[1] // "Armid" or "Limpet"
+			quantity := p.parseIntSafeWithCommas(parts[0])
+			// Phase 4.5: Mines tracked directly to database (no intermediate collection)
+			if strings.Index(mineStr, "Limpet") != -1 {
+				p.sectorTracker.SetLimpetMines(quantity, owner)
+			} else {
+				p.sectorTracker.SetArmidMines(quantity, owner)
+			}
 		}
-
-		// Phase 4.5: Mines tracked directly to database (no intermediate collection)
 	}
 }
 
@@ -556,16 +554,7 @@ func (p *TWXParser) parseSectorFighters(line string) {
 		}
 	}
 
-	// Store fighter data
-	fighterData := FighterData{
-		SectorNum: p.currentSectorIndex,
-		Quantity:  quantity,
-		Owner:     owner,
-		Type:      fighterType,
-	}
-
-	// Use fighterData (placeholder - would store to DB in full implementation)
-	_ = fighterData
+	p.sectorTracker.SetFighters(quantity, owner, fighterType)
 
 	// Add to message history
 	p.addToHistory(MessageFighter, line, owner, 0)

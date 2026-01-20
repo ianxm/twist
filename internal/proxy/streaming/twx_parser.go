@@ -53,10 +53,10 @@ type OrderedPatternHandler struct {
 type FighterType int
 
 const (
-	FighterNone FighterType = iota
-	FighterOffensive
+	FighterToll FighterType = iota
 	FighterDefensive
-	FighterToll
+	FighterOffensive
+	FighterNone
 )
 
 // FighterData holds fighter deployment information for a sector
@@ -886,6 +886,7 @@ func (p *TWXParser) handleSectorStart(line string) {
 			// Start new discovered field session
 			log.Info("SECTOR_TRACKER_LIFECYCLE: Creating new sectorTracker", "sector", sectorNum, "previous_tracker_nil", p.sectorTracker == nil)
 			p.sectorTracker = NewSectorTracker(sectorNum)
+			p.sectorTracker.ClearFigsAndMines()
 			p.sectorCollections = NewSectorCollections(sectorNum)
 			p.portTracker = NewPortTracker(sectorNum)
 

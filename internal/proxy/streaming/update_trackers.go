@@ -389,6 +389,36 @@ func (s *SectorTracker) SetExplored(explored int) *SectorTracker {
 	return s
 }
 
+func (s *SectorTracker) ClearFigsAndMines() *SectorTracker {
+	s.updates[ColSectorMinesArmidQuantity] = 0
+	s.updates[ColSectorMinesArmidOwner] = ""
+	s.updates[ColSectorMinesLimpetQuantity] = 0
+	s.updates[ColSectorMinesLimpetOwner] = ""
+	s.updates[ColSectorFightersQuantity] = 0
+	s.updates[ColSectorFightersOwner] = ""
+	s.updates[ColSectorFightersType] = 3
+	return s;
+}
+
+func (s *SectorTracker) SetArmidMines(quantity int, owner string) *SectorTracker {
+	s.updates[ColSectorMinesArmidQuantity] = quantity
+	s.updates[ColSectorMinesArmidOwner] = owner
+	return s
+}
+
+func (s *SectorTracker) SetLimpetMines(quantity int, owner string) *SectorTracker {
+	s.updates[ColSectorMinesLimpetQuantity] = quantity
+	s.updates[ColSectorMinesLimpetOwner] = owner
+	return s
+}
+
+func (s *SectorTracker) SetFighters(quantity int, owner string, fighterType FighterType) *SectorTracker {
+	s.updates[ColSectorFightersQuantity] = quantity
+	s.updates[ColSectorFightersOwner] = owner
+	s.updates[ColSectorFightersType] = int(fighterType)
+	return s
+}
+
 // HasUpdates returns true if any fields were discovered during parsing
 func (s *SectorTracker) HasUpdates() bool {
 	return len(s.updates) > 0

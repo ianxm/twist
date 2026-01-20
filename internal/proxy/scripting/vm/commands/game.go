@@ -442,15 +442,16 @@ func setSectorVariables(vm types.VMInterface, varName string, index int, sector 
 	vm.SetVariable(varName+".BEACON", &types.Value{Type: types.StringType, String: sector.Beacon})
 	vm.SetVariable(varName+".CONSTELLATION", &types.Value{Type: types.StringType, String: sector.Constellation})
 
-	// Mines - for now set to empty (would need full mine implementation)
-	vm.SetVariable(varName+".ARMIDMINES.QUANTITY", &types.Value{Type: types.NumberType, Number: 0})
-	vm.SetVariable(varName+".LIMPETMINES.QUANTITY", &types.Value{Type: types.NumberType, Number: 0})
-	vm.SetVariable(varName+".ARMIDMINES.OWNER", &types.Value{Type: types.StringType, String: ""})
-	vm.SetVariable(varName+".LIMPETMINES.OWNER", &types.Value{Type: types.StringType, String: ""})
+	// Mines
+	vm.SetVariable(varName+".ARMIDMINES.QUANTITY", &types.Value{Type: types.NumberType, Number: float64(sector.MinesArmid.Quantity)})
+	vm.SetVariable(varName+".LIMPETMINES.QUANTITY", &types.Value{Type: types.NumberType, Number: float64(sector.MinesLimpet.Quantity)})
+	vm.SetVariable(varName+".ARMIDMINES.OWNER", &types.Value{Type: types.StringType, String: sector.MinesArmid.Owner})
+	vm.SetVariable(varName+".LIMPETMINES.OWNER", &types.Value{Type: types.StringType, String: sector.MinesLimpet.Owner})
 
-	// Fighters - for now set to empty
-	vm.SetVariable(varName+".FIGS.QUANTITY", &types.Value{Type: types.NumberType, Number: 0})
-	vm.SetVariable(varName+".FIGS.OWNER", &types.Value{Type: types.StringType, String: ""})
+	// Fighters
+	vm.SetVariable(varName+".FIGS.QUANTITY", &types.Value{Type: types.NumberType, Number: float64(sector.Fighters.Quantity)})
+	vm.SetVariable(varName+".FIGS.OWNER", &types.Value{Type: types.StringType, String: sector.Fighters.Owner})
+	vm.SetVariable(varName+".FIGS.TYPE", &types.Value{Type: types.StringType, String: sector.Fighters.Type})
 
 	// Warp and density information
 	vm.SetVariable(varName+".WARPS", &types.Value{Type: types.NumberType, Number: float64(len(sector.Warps))})

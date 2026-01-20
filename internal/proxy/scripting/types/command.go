@@ -153,6 +153,20 @@ type SectorData struct {
 	Ships         []ShipData
 	Traders       []TraderData
 	Planets       []PlanetData
+	MinesLimpet   MineData
+	MinesArmid    MineData
+	Fighters      FighterData
+}
+
+type MineData struct {
+	Owner	    string
+	Quantity    int
+}
+
+type FighterData struct {
+	Owner	    string
+	Quantity    int
+	Type	    string
 }
 
 // ShipData represents ship information

@@ -93,6 +93,9 @@ func (g *GameAdapter) GetSector(index int) (types.SectorData, error) {
 		Ships:         make([]types.ShipData, 0),
 		Traders:       make([]types.TraderData, 0),
 		Planets:       make([]types.PlanetData, 0),
+		MinesLimpet:   types.MineData{Owner: sector.MinesLimpet.Owner, Quantity: sector.MinesLimpet.Quantity},
+		MinesArmid:    types.MineData{Owner: sector.MinesArmid.Owner, Quantity: sector.MinesArmid.Quantity},
+		Fighters:      types.FighterData{Owner: sector.Figs.Owner, Quantity: sector.Figs.Quantity, Type: sector.Figs.FigType.String()},
 	}
 
 	// Load port data from separate ports table
