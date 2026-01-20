@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"time"
 	"twist/internal/log"
 	"twist/internal/proxy/scripting/types"
 )
@@ -30,6 +31,7 @@ func RegisterGameCommands(vm CommandRegistry) {
 	vm.RegisterCommand("MERGETEXT", 3, 3, []types.ParameterType{types.ParamValue, types.ParamValue, types.ParamVar}, cmdMergeText)
 
 	// Game data commands - TWX compatibility
+	vm.RegisterCommand("SLEEP", 1, 1, []types.ParameterType{types.ParamValue}, cmdSleep)
 	vm.RegisterCommand("GETSECTOR", 2, 2, []types.ParameterType{types.ParamValue, types.ParamVar}, cmdGetSector)
 }
 
@@ -263,7 +265,9 @@ func cmdSleep(vm types.VMInterface, params []*types.CommandParam) error {
 		return vm.Error("SLEEP requires exactly 1 parameter: milliseconds")
 	}
 
-	// Mock sleep - in real implementation would actually sleep
+	duration := GetParamNumber(vm, params[0])
+	time.Sleep(time.Duration(duration * float64(time.Millisecond)))
+
 	return nil
 }
 
