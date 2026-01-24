@@ -135,9 +135,10 @@ func (vm *VariableManager) Get(name string) *types.Value {
 		// Check if this is a system constant (only if no user variable exists)
 		if vm.gameInterface != nil {
 			if systemConstants := vm.gameInterface.GetSystemConstants(); systemConstants != nil {
-				if constantValue, exists := systemConstants.GetConstant(name); exists {
+				cleanName := strings.TrimPrefix(name, "$")
+				if constantValue, exists := systemConstants.GetConstant(cleanName); exists {
 					// Debug logging for CURRENTLINE access
-					if baseName == "CURRENTLINE" {
+					if cleanName == "CURRENTLINE" {
 						log.Info("VariableManager.Get: CURRENTLINE accessed", "gameInterface", fmt.Sprintf("%p", vm.gameInterface), "systemConstants", fmt.Sprintf("%p", systemConstants), "value", constantValue.String)
 					}
 					// Handle array indexing on constants if needed (like LIBPARM[0])
@@ -146,7 +147,7 @@ func (vm *VariableManager) Get(name string) *types.Value {
 					}
 					// Handle property access on constants if needed (like SECTOR.WARPS)
 					if len(properties) > 0 {
-						return vm.resolveConstantProperties(baseName, properties)
+						return vm.resolveConstantProperties(cleanName, properties)
 					}
 					return constantValue
 				}
