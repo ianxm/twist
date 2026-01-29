@@ -555,7 +555,7 @@ func (e *Engine) ProcessText(text string) error {
 	for _, script := range scripts {
 		if script.Running && script.VM != nil {
 			scriptCount++
-			if err := script.VM.ProcessIncomingText(strippedText); err != nil {
+			if _, err := script.VM.ProcessIncomingText(strippedText, false); err != nil {
 			} else {
 			}
 		}
@@ -568,8 +568,25 @@ func (e *Engine) ProcessText(text string) error {
 // Returns (matched, error) - matched=true if any TextLineTrigger fired
 // Note: Triggers are handled at VM level, this just returns false to indicate no engine-level triggers fired
 func (e *Engine) ProcessTextLine(line string) (bool, error) {
-	// Engine-level trigger processing removed - triggers are handled per-VM
-	return false, nil
+	// Strip ANSI escape sequences using streaming stripper to handle chunks properly
+	// This ensures waitfor triggers match properly against clean text
+	strippedText := e.ansiStripper.StripChunk(line)
+
+	// Forward stripped text to all running script VMs for waitfor processing (lockless!)
+	scripts := e.getScripts()
+	scriptCount := 0
+	triggered := false
+	for _, script := range scripts {
+		if script.Running && script.VM != nil {
+			scriptCount++
+			var err error
+			if triggered, err = script.VM.ProcessIncomingText(strippedText, true); err != nil {
+			} else {
+			}
+		}
+	}
+
+	return triggered, nil
 }
 
 // ProcessTextOut processes outgoing text through triggers

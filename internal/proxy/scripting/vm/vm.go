@@ -512,17 +512,21 @@ func (vm *VirtualMachine) GetActiveTriggersCount() int {
 
 // Text processing - ProcessTriggers method removed, logic moved to ProcessIncomingText for TWX compatibility
 
-func (vm *VirtualMachine) ProcessIncomingText(text string) error {
+func (vm *VirtualMachine) ProcessIncomingText(text string, isLine bool) (bool, error) {
 	scriptName := "unknown"
 	if vm.script != nil {
 		scriptName = vm.script.GetName()
 	}
 
 	// 1. Process TextLine triggers first (like TWX TextLineEvent)
-	textLineTriggerFired, err := vm.triggerManager.ProcessTextLine(text)
-	if err != nil {
-		log.Error("VM.ProcessIncomingText: error processing TextLine triggers", "script", scriptName, "error", err)
-		return err
+	var textLineTriggerFired = false
+	if isLine {
+		var err error
+		textLineTriggerFired, err = vm.triggerManager.ProcessTextLine(text)
+		if err != nil {
+			log.Error("VM.ProcessIncomingText: error processing TextLine triggers", "script", scriptName, "error", err)
+			return false, err
+		}
 	}
 
 	// Check if we're waiting for specific text (like TWX WaitFor)
@@ -533,7 +537,7 @@ func (vm *VirtualMachine) ProcessIncomingText(text string) error {
 			log.Info("VM.ProcessIncomingText: TRIGGER MATCHED! Continuing script execution", "script", scriptName)
 			vm.state.ClearWait()
 			// Resume execution - the position was already advanced by ExecuteStep
-			return vm.Execute()
+			return textLineTriggerFired, vm.Execute()
 		} else {
 			log.Info("VM.ProcessIncomingText: trigger not found, still waiting", "script", scriptName)
 		}
@@ -542,12 +546,12 @@ func (vm *VirtualMachine) ProcessIncomingText(text string) error {
 	// 3. Only process Text triggers if TextLine trigger didn't fire (matches TWX behavior)
 	if !textLineTriggerFired {
 		log.Debug("VM.ProcessIncomingText: processing Text triggers (no TextLineTrigger fired)", "script", scriptName)
-		return vm.triggerManager.ProcessText(text)
+		return textLineTriggerFired, vm.triggerManager.ProcessText(text)
 	} else {
 		log.Debug("VM.ProcessIncomingText: skipping Text triggers (TextLineTrigger fired)", "script", scriptName)
 	}
 
-	return nil
+	return textLineTriggerFired, nil
 }
 
 // Error handling

@@ -2,6 +2,7 @@ package streaming
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"twist/internal/ansi"
@@ -194,11 +195,12 @@ type CurrentSector struct {
 // TWXParser implements the TWX-style stream parser with buffering for partial lines
 type TWXParser struct {
 	// Buffering for partial lines (like TWX Pascal implementation)
-	currentLine     string
-	currentANSILine string
-	rawANSILine     string
-	inANSI          bool
-	ansiStripper    *ansi.StreamingStripper // Handles ANSI sequences across chunks
+	currentLine	    string
+	currentANSILine	    string
+	isCurrentLinePrompt bool
+	rawANSILine	    string
+	inANSI		    bool
+	ansiStripper	    *ansi.StreamingStripper // Handles ANSI sequences across chunks
 
 	// State tracking (mirrors TWX Pascal state)
 	currentDisplay          DisplayType
@@ -267,6 +269,10 @@ type TWXParser struct {
 	scriptInterpreter IScriptInterpreter
 }
 
+const (
+	pattern = "[:\\?\\]] $"
+)
+
 // GetDatabase returns the database instance, panicking if it's nil
 func (p *TWXParser) GetDatabase() database.Database {
 	if p.getDatabaseFunc == nil {
@@ -287,6 +293,7 @@ func NewTWXParser(getDatabaseFunc func() database.Database, tuiAPI api.TuiAPI) *
 	parser := &TWXParser{
 		currentLine:            "",
 		currentANSILine:        "",
+		isCurrentLinePrompt:    false,
 		rawANSILine:            "",
 		inANSI:                 false,
 		ansiStripper:           ansi.NewStreamingStripper(),
@@ -456,7 +463,10 @@ func (p *TWXParser) ProcessInBound(data string) {
 		// Process the complete line WITHOUT error recovery to see actual error
 		// Validate line format before processing
 		if p.validateLineFormat(completeLine) {
-			p.processLine(completeLine)
+			if !p.isCurrentLinePrompt {
+				p.processLine(completeLine)
+			}
+			p.isCurrentLinePrompt = false
 			// Fire parse complete event
 			p.fireParseCompleteEvent(completeLine)
 		}
@@ -488,9 +498,16 @@ func (p *TWXParser) ProcessInBound(data string) {
 			p.UpdateCurrentLine(p.currentLine)
 		}
 
-		p.FireAutoTextEvent(p.currentLine, false)
+		// p.FireAutoTextEvent(p.currentLine, false)
 
 		// Process partial line for prompts (key TWX feature!)
+		match, _ := regexp.MatchString(pattern, line)
+		if match {
+			p.FireTextLineEvent(line, false)
+			p.isCurrentLinePrompt = true
+		} else {
+			p.FireTextEvent(line, false)
+		}
 		p.processPrompt(p.currentLine)
 	}
 }
@@ -601,7 +618,7 @@ func (p *TWXParser) processLine(line string) {
 
 	// If a TextLineTrigger fired, skip Text event processing (waitfor) - matches TWX behavior
 	if !textLineTriggerFired {
-		// Always check for prompts (this fires TextEvent)
+		// Always check for prompts
 		p.processPrompt(line)
 	}
 
@@ -616,7 +633,7 @@ func (p *TWXParser) processPrompt(line string) {
 	}
 
 	// Fire TextEvent as in Pascal TWX ProcessPrompt (mirrors Pascal TWXInterpreter.TextEvent)
-	p.FireTextEvent(line, false)
+	// p.FireTextEvent(line, false)
 
 	// Check for prompt patterns
 	for _, ph := range p.handlers {
