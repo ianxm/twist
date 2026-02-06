@@ -269,10 +269,6 @@ type TWXParser struct {
 	scriptInterpreter IScriptInterpreter
 }
 
-const (
-	pattern = "[:\\?\\]] $"
-)
-
 // GetDatabase returns the database instance, panicking if it's nil
 func (p *TWXParser) GetDatabase() database.Database {
 	if p.getDatabaseFunc == nil {
@@ -416,6 +412,16 @@ func (p *TWXParser) setupDefaultHandlers() {
 	// Note: We register the pattern differently since we need position-specific matching
 }
 
+// pattern to capture a prompt without input. examples:
+//
+// "Command [TL=06:07:47]:[9112] (?=Help)? : "
+// "Computer command [TL=06:01:26]:[351] (?=Help)? "
+// "Planet command (?=help) [D] "
+// "Your offer [2,844] ? "
+// "How many holds of Organics do you want to buy [100]? "
+// "Enter your choice [T] ? "
+var promptPattern = regexp.MustCompile("[:\\?\\]] $")
+
 // ProcessInBound processes incoming data (main entry point, like TWX Pascal)
 func (p *TWXParser) ProcessInBound(data string) {
 	// Note: Text events are fired in processLine() for complete, processed lines
@@ -501,7 +507,8 @@ func (p *TWXParser) ProcessInBound(data string) {
 		// p.FireAutoTextEvent(p.currentLine, false)
 
 		// Process partial line for prompts (key TWX feature!)
-		match, _ := regexp.MatchString(pattern, line)
+		// if this is a complete prompt send it to ProcessTextLine, else send it to ProcessText
+		match := promptPattern.MatchString(line)
 		if match {
 			p.FireTextLineEvent(line, false)
 			p.isCurrentLinePrompt = true
