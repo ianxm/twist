@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"path/filepath"
 	"sync/atomic"
 
 	"twist/internal/log"
@@ -1299,16 +1300,32 @@ func (tmm *TerminalMenuManager) handleScriptLoadInput(filename string) error {
 		return nil
 	}
 
-	// Validate script file exists
-	tmm.sendOutput("\r\nValidating script: " + filename + "...\r\n")
+	if strings.Contains(filename, "*") {
+		// Name glob
+		matchedFiles, err := filepath.Glob(filename)
+		if err != nil {
+			log.Error("Problem globbing", "err", err)
+		}
+		for _, matchedFilename := range matchedFiles {
+			tmm.handleSingleScriptLoadInput(scriptManager, matchedFilename)
+		}
+	} else {
+		// Validate script file exists
+		tmm.sendOutput("\r\nValidating script: " + filename + "...\r\n")
 
-	// Check if file exists
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		tmm.sendOutput(display.FormatErrorMessage("Script file not found: " + filename))
-		tmm.displayCurrentMenu()
-		return nil
+		// Check if file exists
+		if _, err := os.Stat(filename); os.IsNotExist(err) {
+			tmm.sendOutput(display.FormatErrorMessage("Script file not found: " + filename))
+			tmm.displayCurrentMenu()
+			return nil
+		}
+
+		tmm.handleSingleScriptLoadInput(scriptManager, filename)
 	}
+	return nil
+}
 
+func (tmm *TerminalMenuManager) handleSingleScriptLoadInput(scriptManager ScriptManagerInterface, filename string) error {
 	// CRITICAL: Exit menu system completely - script input now handled by proxy
 	// This ensures clean separation between menu operations and script input
 	tmm.sendOutput("Script validated. Exiting menu system...\r\n")
