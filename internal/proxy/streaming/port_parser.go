@@ -140,7 +140,13 @@ func (p *TWXParser) processLineInPortContext(line string) {
 
 	log.Info("PORT: processLineInPortContext processing line", "display", p.currentDisplay, "line", line)
 
-	// Check for commodity selection lines ("How many holds of X do you want to buy")
+
+	// Check for trade direction (buying/selling) ("We are X up to")
+	if strings.Contains(line, "We are") && strings.Contains(line, "up to") {
+		p.parseCurrentTradeDirection(line)
+	}
+
+	// Check for commodity selection lines ("How many holds of X do you want to buy/sell")
 	if strings.Contains(line, "How many holds of") && strings.Contains(line, "do you want to buy") {
 		p.parseCurrentCommodityContext(line)
 	}
@@ -387,6 +393,14 @@ func (p *TWXParser) savePortData() {
 	}
 }
 
+// parseCurrentTradedirection extracts if this is a buy or sell
+func (p *TWXParser) parseCurrentTradeDirection(line string) {
+
+	// Example: "We are selling up to 433.  You have 0 in your holds."
+	// Check for "buying" or "selling"
+	p.currentlyBuying = !strings.Contains(line, "buying")
+}
+
 // parseCurrentCommodityContext extracts which commodity is currently being traded
 func (p *TWXParser) parseCurrentCommodityContext(line string) {
 
@@ -416,6 +430,9 @@ func (p *TWXParser) parseTradeTransaction(line string) {
 			// Found "units." - the quantity should be the previous part
 			quantityStr := parts[i-1]
 			if quantity := p.parseIntSafe(quantityStr); quantity > 0 {
+				if !p.currentlyBuying {
+					quantity *= -1
+				}
 				// Update cargo holds using straight-sql tracker
 				if p.playerStatsTracker == nil {
 					p.playerStatsTracker = NewPlayerStatsTracker()

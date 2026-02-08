@@ -209,6 +209,7 @@ type TWXParser struct {
 	portSectorIndex         int
 	currentPortName         string      // Name of the current port being parsed
 	currentTradingCommodity ProductType // Currently trading commodity (port-specific state)
+	currentlyBuying		bool        // True when current trade is a buy and not sell
 	figScanSector           int
 	lastWarp                int
 	sectorSaved             bool
