@@ -469,10 +469,7 @@ func (p *TWXParser) ProcessInBound(data string) {
 		// Process the complete line WITHOUT error recovery to see actual error
 		// Validate line format before processing
 		if p.validateLineFormat(completeLine) {
-			if !p.isCurrentLinePrompt {
-				p.processLine(completeLine)
-			}
-			p.isCurrentLinePrompt = false
+			p.processLine(completeLine)
 			// Fire parse complete event
 			p.fireParseCompleteEvent(completeLine)
 		}
@@ -618,10 +615,15 @@ func (p *TWXParser) processLine(line string) {
 	}
 
 	// Fire TextLineEvent as in Pascal TWX ProcessLine (mirrors Pascal TWXInterpreter.TextLineEvent)
-	textLineTriggerFired, err := p.FireTextLineEvent(line, false)
-	if err != nil {
-		log.Error("Error firing TextLineEvent", "error", err, "line", line)
+	textLineTriggerFired := false
+	err := error(nil)
+	if !p.isCurrentLinePrompt {
+		textLineTriggerFired, err = p.FireTextLineEvent(line, false)
+		if err != nil {
+			log.Error("Error firing TextLineEvent", "error", err, "line", line)
+		}
 	}
+	p.isCurrentLinePrompt = false
 
 	// If a TextLineTrigger fired, skip Text event processing (waitfor) - matches TWX behavior
 	if !textLineTriggerFired {
