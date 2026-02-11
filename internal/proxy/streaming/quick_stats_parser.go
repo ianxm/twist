@@ -15,8 +15,8 @@ type QuickStatsDisplay struct {
 func (p *TWXParser) setupQuickStatsHandlers() {
 	// Quick stats patterns - detect lines containing separator character
 	// Format: " Sect 1│Turns 1,600│Creds 10,000│Figs 30│Shlds 0│..."
-	p.AddHandler("│", p.handleQuickStatsLine)
-	p.AddHandler(" Ship", p.handleQuickStatsLine) // Ship line format variant
+	p.AddFullHandler("│", p.handleQuickStatsLine)
+	p.AddFullHandler(" Ship", p.handleQuickStatsLine) // Ship line format variant
 }
 
 // initQuickStatsDisplay initializes quick stats parsing state

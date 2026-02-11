@@ -3,6 +3,7 @@ package streaming
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"twist/internal/ansi"
@@ -249,7 +250,8 @@ type TWXParser struct {
 	currentTrader TraderInfo
 
 	// Pattern handlers (ordered slice to ensure deterministic processing)
-	handlers []OrderedPatternHandler
+	fullHandlers []OrderedPatternHandler
+	partialHandlers []OrderedPatternHandler
 
 	// Position tracking
 	position int64
@@ -300,7 +302,8 @@ func NewTWXParser(getDatabaseFunc func() database.Database, tuiAPI api.TuiAPI) *
 		sectorSaved:            false,
 		probeDiscoveredSectors: make(map[int]bool),
 		menuKey:                '$',
-		handlers:               make([]OrderedPatternHandler, 0),
+		fullHandlers:           make([]OrderedPatternHandler, 0),
+		partialHandlers:        make([]OrderedPatternHandler, 0),
 		position:               0,
 		lastChar:               0,
 		maxHistorySize:         1000,
@@ -349,9 +352,22 @@ func (p *TWXParser) GetScriptEventProcessor() *ScriptEventProcessor {
 	return p.scriptEventProcessor
 }
 
-// AddHandler adds a pattern handler
-func (p *TWXParser) AddHandler(pattern string, handler PatternHandler) {
-	p.handlers = append(p.handlers, OrderedPatternHandler{
+// AddFullHandler adds a pattern handler for full lines
+func (p *TWXParser) AddFullHandler(pattern string, handler PatternHandler) {
+	p.addHandler(pattern, handler, false)
+}
+
+// AddPartialHandler adds a pattern handler for partial lines
+func (p *TWXParser) AddPartialHandler(pattern string, handler PatternHandler) {
+	p.addHandler(pattern, handler, true)
+}
+
+func (p *TWXParser) addHandler(pattern string, handler PatternHandler, partial bool) {
+	handlerList := &p.fullHandlers
+	if partial {
+		handlerList = &p.partialHandlers
+	}
+	*handlerList = append(*handlerList, OrderedPatternHandler{
 		Pattern: pattern,
 		Handler: handler,
 	})
@@ -360,54 +376,54 @@ func (p *TWXParser) AddHandler(pattern string, handler PatternHandler) {
 // setupDefaultHandlers sets up the core TWX pattern handlers
 func (p *TWXParser) setupDefaultHandlers() {
 	// Command prompts
-	p.AddHandler("Command [TL=", p.handleCommandPrompt)
-	p.AddHandler("Computer command [TL=", p.handleComputerPrompt)
-	p.AddHandler("Probe entering sector :", p.handleProbePrompt)
-	p.AddHandler("Probe Self Destructs", p.handleProbePrompt)
-	p.AddHandler("Stop in this sector", p.handleStopPrompt)
-	p.AddHandler("Engage the Autopilot?", p.handleStopPrompt)
+	p.AddPartialHandler("Command [TL=", p.handleCommandPrompt)
+	p.AddPartialHandler("Computer command [TL=", p.handleComputerPrompt)
+	p.AddFullHandler("Probe entering sector :", p.handleProbePrompt)
+	p.AddFullHandler("Probe Self Destructs", p.handleProbePrompt)
+	p.AddFullHandler("Stop in this sector", p.handleStopPrompt)
+	p.AddFullHandler("Engage the Autopilot?", p.handleStopPrompt)
 	// Sector data (must be before CIM detection to avoid false matches)
-	p.AddHandler("Sector  : ", p.handleSectorStart)
-	p.AddHandler("Sector  :", p.handleSectorStart) // Handle variant without space before colon
-	p.AddHandler("Warps to Sector(s) :", p.handleSectorWarps)
-	p.AddHandler("Beacon  : ", p.handleSectorBeacon)
-	p.AddHandler("Ports   : ", p.handleSectorPorts)
-	p.AddHandler("Planets : ", p.handleSectorPlanets)
-	p.AddHandler("Traders : ", p.handleSectorTraders)
-	p.AddHandler("Ships   : ", p.handleSectorShips)
-	p.AddHandler("Fighters: ", p.handleSectorFighters)
-	p.AddHandler("NavHaz  : ", p.handleSectorNavHaz)
-	p.AddHandler("Mines   : ", p.handleSectorMines)
+	p.AddFullHandler("Sector  : ", p.handleSectorStart)
+	p.AddFullHandler("Sector  :", p.handleSectorStart) // Handle variant without space before colon
+	p.AddFullHandler("Warps to Sector(s) :", p.handleSectorWarps)
+	p.AddFullHandler("Beacon  : ", p.handleSectorBeacon)
+	p.AddFullHandler("Ports   : ", p.handleSectorPorts)
+	p.AddFullHandler("Planets : ", p.handleSectorPlanets)
+	p.AddFullHandler("Traders : ", p.handleSectorTraders)
+	p.AddFullHandler("Ships   : ", p.handleSectorShips)
+	p.AddFullHandler("Fighters: ", p.handleSectorFighters)
+	p.AddFullHandler("NavHaz  : ", p.handleSectorNavHaz)
+	p.AddFullHandler("Mines   : ", p.handleSectorMines)
 
-	p.AddHandler(": ", p.handleCIMPrompt)
+	p.AddPartialHandler(": ", p.handleCIMPrompt)
 
 	// Port data
-	p.AddHandler("Docking...", p.handlePortDocking)
-	p.AddHandler("Commerce report for ", p.handlePortReport)
-	p.AddHandler("What sector is the port in? ", p.handlePortCR)
+	p.AddFullHandler("Docking...", p.handlePortDocking)
+	p.AddFullHandler("Commerce report for ", p.handlePortReport)
+	p.AddFullHandler("What sector is the port in? ", p.handlePortCR)
 
 	// Density scanner
-	p.AddHandler("Relative Density", p.handleDensityStart)
+	p.AddFullHandler("Relative Density", p.handleDensityStart)
 
 	// Warp lanes
-	p.AddHandler("The shortest path (", p.handleWarpLaneStart)
-	p.AddHandler("  TO > ", p.handleWarpLaneStart)
+	p.AddFullHandler("The shortest path (", p.handleWarpLaneStart)
+	p.AddFullHandler("  TO > ", p.handleWarpLaneStart)
 
 	// Fighter scan
-	p.AddHandler("Deployed  Fighter  Scan", p.handleFigScanStart)
+	p.AddFullHandler("Deployed  Fighter  Scan", p.handleFigScanStart)
 
 	// Version detection
-	p.AddHandler("TradeWars Game", p.handleTWGSVersion)
-	p.AddHandler("Trade Wars 2002 Game", p.handleTW2002Version)
+	p.AddFullHandler("TradeWars Game", p.handleTWGSVersion)
+	p.AddFullHandler("Trade Wars 2002 Game", p.handleTW2002Version)
 
 	// Citadel treasury detection (mirrors Pascal: Copy(Line, 1, 25) = 'Citadel treasury contains')
-	p.AddHandler("Citadel treasury contains", p.handleCitadelTreasury)
+	p.AddFullHandler("Citadel treasury contains", p.handleCitadelTreasury)
 
 	// Messages and transmissions
-	p.AddHandler("Incoming transmission from", p.handleTransmission)
-	p.AddHandler("Continuing transmission from", p.handleTransmission)
-	p.AddHandler("Deployed Fighters Report Sector", p.handleFighterReport)
-	p.AddHandler("Shipboard Computers ", p.handleComputerReport)
+	p.AddFullHandler("Incoming transmission from", p.handleTransmission)
+	p.AddFullHandler("Continuing transmission from", p.handleTransmission)
+	p.AddFullHandler("Deployed Fighters Report Sector", p.handleFighterReport)
+	p.AddFullHandler("Shipboard Computers ", p.handleComputerReport)
 
 	// Stardock detection from 'V' screen (Pascal: Copy(Line, 14, 8) = 'StarDock')
 	// Note: We register the pattern differently since we need position-specific matching
@@ -470,6 +486,7 @@ func (p *TWXParser) ProcessInBound(data string) {
 		// Process the complete line WITHOUT error recovery to see actual error
 		// Validate line format before processing
 		if p.validateLineFormat(completeLine) {
+			log.Debug("ianxm: ProcessInBound complete line", "completeLine", completeLine)
 			p.processLine(completeLine)
 			// Fire parse complete event
 			p.fireParseCompleteEvent(completeLine)
@@ -508,11 +525,14 @@ func (p *TWXParser) ProcessInBound(data string) {
 		// if this is a complete prompt send it to ProcessTextLine, else send it to ProcessText
 		match := promptPattern.MatchString(line)
 		if match {
+			log.Debug("ianxm: ProcessInBound complete prompt line", "line", line)
 			p.FireTextLineEvent(line, false)
 			p.isCurrentLinePrompt = true
 		} else {
+			log.Debug("ianxm: ProcessInBound partial line", "line", line)
 			p.FireTextEvent(line, false)
 		}
+		log.Debug("ianxm: ProcessInBound prompt", "line", line)
 		p.processPrompt(p.currentLine)
 	}
 }
@@ -587,6 +607,7 @@ func (p *TWXParser) processLine(line string) {
 		return
 	}
 	// Handle continuation based on current display state
+	log.Debug("ianxm, processLine", "line", line, "currentDisplay", p.currentDisplay)
 	switch p.currentDisplay {
 	case DisplaySector:
 		p.processSectorLine(line)
@@ -646,7 +667,7 @@ func (p *TWXParser) processPrompt(line string) {
 	// p.FireTextEvent(line, false)
 
 	// Check for prompt patterns
-	for _, ph := range p.handlers {
+	for _, ph := range p.partialHandlers {
 		if strings.HasPrefix(line, ph.Pattern) {
 			ph.Handler(line)
 			return
@@ -671,7 +692,7 @@ func (p *TWXParser) checkPatterns(line string) {
 		}
 	}
 
-	for _, ph := range p.handlers {
+	for _, ph := range slices.Concat(p.fullHandlers, p.partialHandlers) {
 		if strings.Contains(line, ph.Pattern) {
 			ph.Handler(line)
 			return
@@ -1203,7 +1224,8 @@ func (p *TWXParser) processSectorLine(line string) {
 	// This should only trigger for actual section endings, not sector data like "Planets : Terra (L)"
 	if len(line) > 9 && line[8] == ':' {
 		// Skip this logic if it's a known sector data pattern
-		sectorDataPatterns := []string{"Planets : ", "Beacon  : ", "NavHaz  : "}
+		sectorDataPatterns := []string{"Planets : ", "Ports   : ", "Traders : ", "Ships   : ", "Mines   : ",
+			"Beacon  : ", "NavHaz  : "}
 		isSectorData := false
 		for _, pattern := range sectorDataPatterns {
 			if strings.HasPrefix(line, pattern) {

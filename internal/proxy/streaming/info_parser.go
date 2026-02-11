@@ -22,18 +22,18 @@ const (
 // setupInfoHandlers sets up handlers for info display parsing
 func (p *TWXParser) setupInfoHandlers() {
 	// Info display headers - detect start of info display
-	p.AddHandler("<Info>", p.handleInfoDisplayStart)
+	p.AddFullHandler("<Info>", p.handleInfoDisplayStart)
 
 	// Info display fields - only active when inside info display
-	p.AddHandler("Trader Name    :", p.handleInfoTraderName)
-	p.AddHandler("Rank and Exp   :", p.handleInfoRankExp)
-	p.AddHandler("Ship Info      :", p.handleInfoShipInfo)
-	p.AddHandler("Turns left     :", p.handleInfoTurnsLeft)
-	p.AddHandler("Total Holds    :", p.handleInfoTotalHolds)
-	p.AddHandler("Fighters       :", p.handleInfoFighters)
-	p.AddHandler("Ether Probes   :", p.handleInfoEtherProbes)
-	p.AddHandler("Credits        :", p.handleInfoCredits)
-	p.AddHandler("Current Sector :", p.handleInfoCurrentSector)
+	p.AddFullHandler("Trader Name    :", p.handleInfoTraderName)
+	p.AddFullHandler("Rank and Exp   :", p.handleInfoRankExp)
+	p.AddFullHandler("Ship Info      :", p.handleInfoShipInfo)
+	p.AddFullHandler("Turns left     :", p.handleInfoTurnsLeft)
+	p.AddFullHandler("Total Holds    :", p.handleInfoTotalHolds)
+	p.AddFullHandler("Fighters       :", p.handleInfoFighters)
+	p.AddFullHandler("Ether Probes   :", p.handleInfoEtherProbes)
+	p.AddFullHandler("Credits        :", p.handleInfoCredits)
+	p.AddFullHandler("Current Sector :", p.handleInfoCurrentSector)
 }
 
 // Add info display state to TWXParser
