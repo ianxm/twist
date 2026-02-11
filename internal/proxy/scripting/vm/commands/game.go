@@ -473,9 +473,9 @@ func setSectorVariables(vm types.VMInterface, varName string, index int, sector 
 	setPortVariables(vm, varName, sector)
 
 	// Trader, ship, planet counts - for basic compatibility set to 0
-	vm.SetVariable(varName+".TRADERS", &types.Value{Type: types.NumberType, Number: 0})
-	vm.SetVariable(varName+".SHIPS", &types.Value{Type: types.NumberType, Number: 0})
-	vm.SetVariable(varName+".PLANETS", &types.Value{Type: types.NumberType, Number: 0})
+	vm.SetVariable(varName+".TRADERS", &types.Value{Type: types.NumberType, Number: float64(len(sector.Traders))})
+	vm.SetVariable(varName+".SHIPS", &types.Value{Type: types.NumberType, Number: float64(len(sector.Ships))})
+	vm.SetVariable(varName+".PLANETS", &types.Value{Type: types.NumberType, Number: float64(len(sector.Planets))})
 }
 
 // setPortVariables sets port variables exactly like Pascal TWX
