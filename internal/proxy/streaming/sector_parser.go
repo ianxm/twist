@@ -459,6 +459,7 @@ func (p *TWXParser) parseSectorMines(line string) {
 	//           or: "Mines   : 50 Armid Mines, 25 Limpet Mines (belong to Spock)"
 	//	     or: "Mines   : 75 (Type 1 Armid) (belong to your Corp)"
 	//	     or: "Mines   : 75 (Type 1 Armid) (yours)"
+	//	     or: "Mines   : 8 (Type 1 Armid) (The Ferrengi)"
 
 	if !strings.HasPrefix(line, "Mines   : ") || p.sectorTracker == nil {
 		return
@@ -471,18 +472,15 @@ func (p *TWXParser) parseSectorMines(line string) {
 	mineInfo := line[10:] // Remove "Mines   : "
 
 	// Extract owner from parentheses
-	start := strings.Index(mineInfo, "belong to")
-	owner := ""
-	if start == -1 {
-		start = strings.Index(mineInfo, "(yours)")
-		owner = "yours"
-	} else {
-		start += 10
-		end := strings.Index(mineInfo[start:], ")")
-		owner = mineInfo[start : start+end]
+	openParen := strings.LastIndex(mineInfo, "(")
+	closeParen := strings.LastIndex(mineInfo, ")")
+
+	owner := mineInfo[openParen+1 : closeParen]
+	if strings.Index(owner, "belong to ") != -1 {
+		owner = owner[10:]
 	}
 
-	mineTypes := strings.Split(mineInfo[:start], ",")
+	mineTypes := strings.Split(mineInfo[:openParen], ",")
 
 	for _, mineStr := range mineTypes {
 		mineStr = strings.TrimSpace(mineStr)
