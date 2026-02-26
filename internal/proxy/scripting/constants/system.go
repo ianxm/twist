@@ -158,14 +158,14 @@ func (sc *SystemConstants) initializeConstants() {
 	sc.constants["PORT.FUEL"] = types.NewNumberValue(0)
 	sc.constants["PORT.ORG"] = types.NewNumberValue(0)
 	sc.constants["PORT.EQUIP"] = types.NewNumberValue(0)
-	sc.constants["PORT.PERCENTFUEL"] = types.NewNumberValue(0)
-	sc.constants["PORT.PERCENTORG"] = types.NewNumberValue(0)
-	sc.constants["PORT.PERCENTEQUIP"] = types.NewNumberValue(0)
+	sc.constants["PORT.PERC_ORE"] = types.NewNumberValue(0)
+	sc.constants["PORT.PERC_ORG"] = types.NewNumberValue(0)
+	sc.constants["PORT.PERC_EQU"] = types.NewNumberValue(0)
 	sc.constants["PORT.BUILDTIME"] = types.NewNumberValue(0)
 	sc.constants["PORT.UPDATED"] = types.NewStringValue("")
-	sc.constants["PORT.BUYFUEL"] = types.NewNumberValue(0)
-	sc.constants["PORT.BUYORG"] = types.NewNumberValue(0)
-	sc.constants["PORT.BUYEQUIP"] = types.NewNumberValue(0)
+	sc.constants["PORT.BUY_ORE"] = types.NewNumberValue(0)
+	sc.constants["PORT.BUY_ORG"] = types.NewNumberValue(0)
+	sc.constants["PORT.BUY_EQU"] = types.NewNumberValue(0)
 
 	// Bot System Constants (for multi-bot support)
 	sc.constants["ACTIVEBOT"] = types.NewStringValue("Default")
@@ -304,8 +304,8 @@ func (sc *SystemConstants) updatePortConstants() {
 
 	if sectorData.HasPort {
 		sc.constants["PORT.EXISTS"] = types.NewNumberValue(1)
-		sc.constants["PORT.NAME"] = types.NewStringValue(sectorData.PortName)
-		sc.constants["PORT.CLASS"] = types.NewNumberValue(float64(sectorData.PortClass))
+		sc.constants["PORT.NAME"] = types.NewStringValue(sectorData.Port.Name)
+		sc.constants["PORT.CLASS"] = types.NewNumberValue(float64(sectorData.Port.ClassIndex))
 	} else {
 		sc.constants["PORT.EXISTS"] = types.NewNumberValue(0)
 		sc.constants["PORT.NAME"] = types.NewStringValue("")

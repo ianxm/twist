@@ -952,6 +952,7 @@ func (p *TWXParser) handlePortDocking(line string) {
 	}
 	p.currentDisplay = DisplayPort
 	p.portSectorIndex = p.currentSectorIndex
+	p.portTracker = NewPortTracker(p.currentSectorIndex)
 }
 
 func (p *TWXParser) handlePortReport(line string) {

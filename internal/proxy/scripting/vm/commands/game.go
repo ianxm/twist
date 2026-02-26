@@ -404,7 +404,7 @@ func cmdGetSector(vm types.VMInterface, params []*types.CommandParam) error {
 		return nil
 	}
 
-	log.Info("GETSECTOR: sector found", "sectorIndex", sectorIndex, "portName", sector.PortName, "portClass", sector.PortClass, "hasPort", sector.HasPort)
+	log.Info("GETSECTOR: sector found", "sectorIndex", sectorIndex, "portName", sector.Port.Name, "portClass", sector.Port.ClassIndex, "hasPort", sector.HasPort)
 
 	// Set all sector variables matching Pascal TWX exactly
 	setSectorVariables(vm, varName, sectorIndex, &sector)
@@ -483,7 +483,7 @@ func setPortVariables(vm types.VMInterface, varName string, sector *types.Sector
 	// Always set port name
 	portName := ""
 	if sector != nil {
-		portName = sector.PortName
+		portName = sector.Port.Name
 	}
 	vm.SetVariable(varName+".PORT.NAME", &types.Value{Type: types.StringType, String: portName})
 
@@ -494,28 +494,34 @@ func setPortVariables(vm types.VMInterface, varName string, sector *types.Sector
 		vm.SetVariable(varName+".PORT.EXISTS", &types.Value{Type: types.NumberType, Number: 0})
 	} else {
 		// Port exists - set all port variables using actual sector data
-		log.Info("SETPORTVARS: port exists", "varName", varName, "portName", portName, "portClass", sector.PortClass)
-		vm.SetVariable(varName+".PORT.CLASS", &types.Value{Type: types.NumberType, Number: float64(sector.PortClass)})
+		log.Info("SETPORTVARS: port exists", "varName", varName, "portName", portName, "portClass", sector.Port.ClassIndex)
+		vm.SetVariable(varName+".PORT.CLASS", &types.Value{Type: types.NumberType, Number: float64(sector.Port.ClassIndex)})
 		vm.SetVariable(varName+".PORT.EXISTS", &types.Value{Type: types.NumberType, Number: 1})
-		vm.SetVariable(varName+".PORT.BUILDTIME", &types.Value{Type: types.NumberType, Number: 0})
+		vm.SetVariable(varName+".PORT.BUILDTIME", &types.Value{Type: types.NumberType, Number: float64(sector.Port.BuildTime)})
 
-		// Product percentages (placeholder values)
-		vm.SetVariable(varName+".PORT.PERC_ORE", &types.Value{Type: types.NumberType, Number: 100})
-		vm.SetVariable(varName+".PORT.PERC_ORG", &types.Value{Type: types.NumberType, Number: 100})
-		vm.SetVariable(varName+".PORT.PERC_EQUIP", &types.Value{Type: types.NumberType, Number: 100})
+		// Product percentages
+		vm.SetVariable(varName+".PORT.PERC_ORE", &types.Value{Type: types.NumberType, Number: float64(sector.Port.OrePercent)})
+		vm.SetVariable(varName+".PORT.PERC_ORG", &types.Value{Type: types.NumberType, Number: float64(sector.Port.OrgPercent)})
+		vm.SetVariable(varName+".PORT.PERC_EQU", &types.Value{Type: types.NumberType, Number: float64(sector.Port.EquipPercent)})
 
-		// Product amounts (placeholder values)
-		vm.SetVariable(varName+".PORT.ORE", &types.Value{Type: types.NumberType, Number: 0})
-		vm.SetVariable(varName+".PORT.ORG", &types.Value{Type: types.NumberType, Number: 0})
-		vm.SetVariable(varName+".PORT.EQUIP", &types.Value{Type: types.NumberType, Number: 0})
+		// Product amounts
+		vm.SetVariable(varName+".PORT.ORE", &types.Value{Type: types.NumberType, Number: float64(sector.Port.OreAmount)})
+		vm.SetVariable(varName+".PORT.ORG", &types.Value{Type: types.NumberType, Number: float64(sector.Port.OrgAmount)})
+		vm.SetVariable(varName+".PORT.EQU", &types.Value{Type: types.NumberType, Number: float64(sector.Port.EquipAmount)})
 
 		// Port update timestamp (placeholder)
 		vm.SetVariable(varName+".PORT.UPDATED", &types.Value{Type: types.StringType, String: "01/01/2024 00:00:00"})
 
-		// Buy flags (placeholder - assume port buys everything)
-		vm.SetVariable(varName+".PORT.BUY_ORE", &types.Value{Type: types.StringType, String: "YES"})
-		vm.SetVariable(varName+".PORT.BUY_ORG", &types.Value{Type: types.StringType, String: "YES"})
-		vm.SetVariable(varName+".PORT.BUY_EQUIP", &types.Value{Type: types.StringType, String: "YES"})
+		// Buy flags
+		buyOre := 0
+		buyOrg := 0
+		buyEquip := 0
+		if sector.Port.BuyOre { buyOre = 1 }
+		if sector.Port.BuyOrg { buyOrg = 1 }
+		if sector.Port.BuyEquip { buyEquip = 1 }
+		vm.SetVariable(varName+".PORT.BUY_ORE", &types.Value{Type: types.NumberType, Number: float64(buyOre)})
+		vm.SetVariable(varName+".PORT.BUY_ORG", &types.Value{Type: types.NumberType, Number: float64(buyOrg)})
+		vm.SetVariable(varName+".PORT.BUY_EQU", &types.Value{Type: types.NumberType, Number: float64(buyEquip)})
 	}
 }
 

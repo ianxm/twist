@@ -351,6 +351,7 @@ func (p *TWXParser) exitPortContext() {
 
 	// Phase 3: Port data including class is tracked in PortTracker during parsing
 	p.savePortData()
+	p.portTracker = nil
 
 	// Reset display mode
 	p.currentDisplay = DisplayNone

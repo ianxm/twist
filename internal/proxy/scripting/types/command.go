@@ -148,14 +148,30 @@ type SectorData struct {
 	Anomaly       bool
 	Explored      int
 	HasPort       bool
-	PortName      string
-	PortClass     int
+	Port	      PortData
 	Ships         []ShipData
 	Traders       []TraderData
 	Planets       []PlanetData
 	MinesLimpet   MineData
 	MinesArmid    MineData
 	Fighters      FighterData
+}
+
+// copied from twx_parser
+type PortData struct {
+	Name         string
+	ClassIndex   int
+	Dead         bool
+	BuildTime    int
+	OreAmount    int
+	OrgAmount    int
+	EquipAmount  int
+	OrePercent   int
+	OrgPercent   int
+	EquipPercent int
+	BuyOre       bool
+	BuyOrg       bool
+	BuyEquip     bool
 }
 
 type MineData struct {
@@ -199,3 +215,4 @@ type ScriptInterface interface {
 	IsSystem() bool
 	Stop() error
 }
+

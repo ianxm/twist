@@ -88,8 +88,9 @@ func (g *GameAdapter) GetSector(index int) (types.SectorData, error) {
 		Anomaly:       sector.Anomaly,
 		Explored:      int(sector.Explored),
 		HasPort:       false,
-		PortName:      "",
-		PortClass:     0,
+		Port:          types.PortData{Name: "", ClassIndex: 0, Dead: false, BuildTime: 0,
+			OreAmount: 0, OrgAmount: 0, EquipAmount: 0, OrePercent: 0, OrgPercent: 0, EquipPercent: 0,
+			BuyOre: true, BuyOrg: true, BuyEquip: true},
 		Ships:         make([]types.ShipData, 0),
 		Traders:       make([]types.TraderData, 0),
 		Planets:       make([]types.PlanetData, 0),
@@ -102,8 +103,17 @@ func (g *GameAdapter) GetSector(index int) (types.SectorData, error) {
 	port, err := g.db.LoadPort(index)
 	if err == nil {
 		scriptSector.HasPort = true
-		scriptSector.PortName = port.Name
-		scriptSector.PortClass = port.ClassIndex
+		scriptSector.Port.Name = port.Name
+		scriptSector.Port.ClassIndex = port.ClassIndex
+		scriptSector.Port.OreAmount = port.ProductAmount[0]
+		scriptSector.Port.OrgAmount = port.ProductAmount[1]
+		scriptSector.Port.EquipAmount = port.ProductAmount[2]
+		scriptSector.Port.OrePercent = port.ProductPercent[0]
+		scriptSector.Port.OrgPercent = port.ProductPercent[1]
+		scriptSector.Port.EquipPercent = port.ProductPercent[2]
+		scriptSector.Port.BuyOre = port.BuyProduct[0]
+		scriptSector.Port.BuyOrg = port.BuyProduct[1]
+		scriptSector.Port.BuyEquip = port.BuyProduct[2]
 	}
 
 	// Copy warps (TWX uses 1-6 indexing, we convert to 0-based slice)
