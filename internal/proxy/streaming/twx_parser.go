@@ -1216,6 +1216,11 @@ func (p *TWXParser) handleComputerReport(line string) {
 
 func (p *TWXParser) processSectorLine(line string) {
 
+	if len(line) == 0 {
+		p.sectorCompleted()
+		return
+	}
+
 	// Handle continuation lines (start with 8 spaces)
 	if strings.HasPrefix(line, "        ") {
 		p.handleSectorContinuation(line)
@@ -1227,7 +1232,7 @@ func (p *TWXParser) processSectorLine(line string) {
 	if len(line) > 9 && line[8] == ':' {
 		// Skip this logic if it's a known sector data pattern
 		sectorDataPatterns := []string{"Planets : ", "Ports   : ", "Traders : ", "Ships   : ", "Mines   : ",
-			"Beacon  : ", "NavHaz  : "}
+			"Fighters: ", "Beacon  : ", "NavHaz  : "}
 		isSectorData := false
 		for _, pattern := range sectorDataPatterns {
 			if strings.HasPrefix(line, pattern) {
@@ -1267,6 +1272,10 @@ func (p *TWXParser) processSectorLine(line string) {
 	}
 	if strings.HasPrefix(line, "Mines   : ") {
 		p.handleSectorMines(line)
+		return
+	}
+	if strings.HasPrefix(line, "Fighters: ") {
+		p.handleSectorFighters(line)
 		return
 	}
 }
@@ -2237,6 +2246,7 @@ func (p *TWXParser) sectorCompleted() {
 	p.sectorTracker = nil
 	p.sectorCollections = nil
 	p.portTracker = nil
+	p.currentDisplay = DisplayNone
 }
 
 // parseIntSafe is now implemented in parser_utils.go
