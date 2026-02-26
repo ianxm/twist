@@ -486,7 +486,8 @@ func (p *TWXParser) ProcessInBound(data string) {
 		// Process the complete line WITHOUT error recovery to see actual error
 		// Validate line format before processing
 		if p.validateLineFormat(completeLine) {
-			log.Debug("ianxm: ProcessInBound complete line", "completeLine", completeLine)
+			log.Debug("ProcessInBound complete line", "completeLine", completeLine)
+			log.LogLine(completeLine)
 			p.processLine(completeLine)
 			// Fire parse complete event
 			p.fireParseCompleteEvent(completeLine)

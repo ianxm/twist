@@ -114,6 +114,17 @@ func LogDataChunk(direction string, data []byte) {
 	}
 }
 
+// LogDataChunk logs raw data chunks to a separate file for debugging network/terminal issues
+func LogLine(line string) {
+	if logFile, err := os.OpenFile("session.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+		fmt.Fprintf(logFile, "%s\n", line)
+		logFile.Close()
+	} else {
+		// Fallback to regular debug log if we can't open the data chunks file
+		Error("Could not write line to session log", "error", err)
+	}
+}
+
 // Close closes the debug logger file
 func Close() {
 	if globalLogger != nil && globalLogger.file != os.Stdout {
