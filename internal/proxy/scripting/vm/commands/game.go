@@ -454,7 +454,7 @@ func setSectorVariables(vm types.VMInterface, varName string, index int, sector 
 	vm.SetVariable(varName+".FIGS.TYPE", &types.Value{Type: types.StringType, String: sector.Fighters.Type})
 
 	// Warp and density information
-	vm.SetVariable(varName+".WARPS", &types.Value{Type: types.NumberType, Number: float64(len(sector.Warps))})
+	vm.SetVariable(varName+".WARPCOUNT", &types.Value{Type: types.NumberType, Number: float64(len(sector.Warps))})
 	vm.SetVariable(varName+".DENSITY", &types.Value{Type: types.NumberType, Number: float64(sector.Density)})
 	vm.SetVariable(varName+".NAVHAZ", &types.Value{Type: types.NumberType, Number: float64(sector.NavHaz)})
 
@@ -464,7 +464,7 @@ func setSectorVariables(vm types.VMInterface, varName string, index int, sector 
 		if i-1 < len(sector.Warps) {
 			warpValue = sector.Warps[i-1]
 		}
-		vm.SetVariable(varName+".WARP["+fmt.Sprintf("%d", i)+"]", &types.Value{
+		vm.SetVariable(varName+".WARPS["+fmt.Sprintf("%d", i)+"]", &types.Value{
 			Type: types.NumberType, Number: float64(warpValue),
 		})
 	}
@@ -531,13 +531,14 @@ func setDefaultSectorValues(vm types.VMInterface, varName string) {
 	vm.SetVariable(varName+".EXPLORED", &types.Value{Type: types.StringType, String: "NO"})
 	vm.SetVariable(varName+".BEACON", &types.Value{Type: types.StringType, String: ""})
 	vm.SetVariable(varName+".CONSTELLATION", &types.Value{Type: types.StringType, String: ""})
+	vm.SetVariable(varName+".WARPCOUNT", &types.Value{Type: types.NumberType, Number: 0})
 	vm.SetVariable(varName+".WARPS", &types.Value{Type: types.NumberType, Number: 0})
 	vm.SetVariable(varName+".DENSITY", &types.Value{Type: types.NumberType, Number: -1})
 	vm.SetVariable(varName+".NAVHAZ", &types.Value{Type: types.NumberType, Number: 0})
 
 	// Default warp array
 	for i := 1; i <= 6; i++ {
-		vm.SetVariable(varName+".WARP["+fmt.Sprintf("%d", i)+"]", &types.Value{
+		vm.SetVariable(varName+".WARPS["+fmt.Sprintf("%d", i)+"]", &types.Value{
 			Type: types.NumberType, Number: 0,
 		})
 	}

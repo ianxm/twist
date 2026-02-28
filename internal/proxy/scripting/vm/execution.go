@@ -709,15 +709,18 @@ func (ee *ExecutionEngine) evaluateArrayAccess(node *parser.ASTNode) (*types.Val
 
 	baseName := node.Children[0].Value
 
-	// Get or create VarParam for this variable
-	varParam := ee.vm.variables.GetVarParam(baseName)
+	// Parse member access: "sector.WARPS" -> base="sector", properties=["WARPS"]
+	baseVarName, _, properties := ee.vm.variables.parseVariableName(baseName)
+
+	// Get or create VarParam for the base variable
+	varParam := ee.vm.variables.GetVarParam(baseVarName)
 	if varParam == nil {
 		// Auto-vivification: create new VarParam
-		varParam = types.NewVarParam(baseName, types.VarParamVariable)
-		ee.vm.variables.SetVarParam(baseName, varParam)
+		varParam = types.NewVarParam(baseVarName, types.VarParamVariable)
+		ee.vm.variables.SetVarParam(baseVarName, varParam)
 	}
 
-	// Evaluate all index expressions and build index path
+	// Evaluate all index expressions
 	indexes := make([]string, len(node.Children)-1)
 	for i := 1; i < len(node.Children); i++ {
 		indexValue, err := ee.evaluateExpression(node.Children[i])
@@ -727,7 +730,34 @@ func (ee *ExecutionEngine) evaluateArrayAccess(node *parser.ASTNode) (*types.Val
 		indexes[i-1] = indexValue.ToString()
 	}
 
-	// Get the indexed variable
+	// Build the full key: for "sector.WARPS[1]" we need "WARPS[1]" as the key
+	var key string
+	if len(properties) > 0 {
+		// Member access with array: "WARPS[1]"
+		key = properties[len(properties)-1]
+		for _, idx := range indexes {
+			key += "[" + idx + "]"
+		}
+		// Look up in the base variable's Vars map
+		if varParam.Vars == nil {
+			varParam.Vars = make(map[string]*types.VarParam)
+		}
+		if indexedVar, exists := varParam.Vars[key]; exists {
+			return &types.Value{
+				Type:   types.StringType,
+				String: indexedVar.GetValue(),
+			}, nil
+		}
+		// Auto-vivify
+		indexedVar := types.NewVarParam(key, types.VarParamVariable)
+		varParam.Vars[key] = indexedVar
+		return &types.Value{
+			Type:   types.StringType,
+			String: indexedVar.GetValue(),
+		}, nil
+	}
+
+	// No member access, just array indexing
 	indexedVar := varParam.GetIndexVar(indexes)
 
 	// Return the value
