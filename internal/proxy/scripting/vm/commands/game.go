@@ -457,6 +457,11 @@ func setSectorVariables(vm types.VMInterface, varName string, index int, sector 
 	vm.SetVariable(varName+".WARPCOUNT", &types.Value{Type: types.NumberType, Number: float64(len(sector.Warps))})
 	vm.SetVariable(varName+".DENSITY", &types.Value{Type: types.NumberType, Number: float64(sector.Density)})
 	vm.SetVariable(varName+".NAVHAZ", &types.Value{Type: types.NumberType, Number: float64(sector.NavHaz)})
+	anomaly := "NO"
+	if sector.Anomaly {
+		anomaly = "YES"
+	}
+	vm.SetVariable(varName+".ANOMALY", &types.Value{Type: types.StringType, String: anomaly})
 
 	// Set warp array (1-6 like Pascal TWX)
 	for i := 1; i <= 6; i++ {
@@ -535,6 +540,7 @@ func setDefaultSectorValues(vm types.VMInterface, varName string) {
 	vm.SetVariable(varName+".WARPS", &types.Value{Type: types.NumberType, Number: 0})
 	vm.SetVariable(varName+".DENSITY", &types.Value{Type: types.NumberType, Number: -1})
 	vm.SetVariable(varName+".NAVHAZ", &types.Value{Type: types.NumberType, Number: 0})
+	vm.SetVariable(varName+".ANOMALY", &types.Value{Type: types.StringType, String: "NO"})
 
 	// Default warp array
 	for i := 1; i <= 6; i++ {
