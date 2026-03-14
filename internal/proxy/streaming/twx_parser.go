@@ -1232,7 +1232,7 @@ func (p *TWXParser) processSectorLine(line string) {
 	if len(line) > 9 && line[8] == ':' {
 		// Skip this logic if it's a known sector data pattern
 		sectorDataPatterns := []string{"Planets : ", "Ports   : ", "Traders : ", "Ships   : ", "Mines   : ",
-			"Fighters: ", "Beacon  : ", "NavHaz  : "}
+			"Fighters: ", "Beacon  : ", "NavHaz  : ", "Warps to Sector(s) : "}
 		isSectorData := false
 		for _, pattern := range sectorDataPatterns {
 			if strings.HasPrefix(line, pattern) {
@@ -1276,6 +1276,10 @@ func (p *TWXParser) processSectorLine(line string) {
 	}
 	if strings.HasPrefix(line, "Fighters: ") {
 		p.handleSectorFighters(line)
+		return
+	}
+	if strings.HasPrefix(line, "Warps to Sector(s) : ") {
+		p.handleSectorWarps(line)
 		return
 	}
 }
