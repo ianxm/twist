@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/gdamore/tcell/v2"
-	"twist/internal/components"
 )
 
 // DialogColors defines color scheme for dialogs and modals
@@ -104,7 +103,7 @@ type Theme interface {
 
 	// Border styling
 	BorderStyle() BorderStyle
-	MenuBorderStyle() components.MenuBorderStyle
+	MenuBorderStyle() MenuBorderStyle
 
 	// ANSI color mapping - returns a 16-color palette (indices 0-15)
 	ANSIColorPalette() [16]tcell.Color

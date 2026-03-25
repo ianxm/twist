@@ -1,51 +1,15 @@
 package components
 
 import (
-	"github.com/gdamore/tcell/v2"
 	"strings"
+
+	"github.com/gdamore/tcell/v2"
 )
 
-// ShortcutManager handles automatic registration and parsing of keyboard shortcuts
-type ShortcutManager struct {
-	shortcuts map[string]func() // map of shortcut string to callback function
-}
-
-// NewShortcutManager creates a new shortcut manager
-func NewShortcutManager() *ShortcutManager {
-	return &ShortcutManager{
-		shortcuts: make(map[string]func()),
-	}
-}
-
-// RegisterShortcut registers a shortcut with its callback
-func (sm *ShortcutManager) RegisterShortcut(shortcut string, callback func()) {
-	if shortcut != "" {
-		sm.shortcuts[strings.ToLower(shortcut)] = callback
-	}
-}
-
-// UnregisterShortcut removes a shortcut
-func (sm *ShortcutManager) UnregisterShortcut(shortcut string) {
-	if shortcut != "" {
-		delete(sm.shortcuts, strings.ToLower(shortcut))
-	}
-}
-
-// HandleKeyEvent checks if a key event matches any registered shortcuts
-func (sm *ShortcutManager) HandleKeyEvent(event *tcell.EventKey) bool {
-	shortcutString := keyEventToString(event)
-	if callback, exists := sm.shortcuts[strings.ToLower(shortcutString)]; exists {
-		callback()
-		return true // Event was handled
-	}
-	return false // Event not handled
-}
-
-// keyEventToString converts a tcell.EventKey to a shortcut string
-func keyEventToString(event *tcell.EventKey) string {
+// KeyEventToString converts a tcell.EventKey to a shortcut string like "ctrl+c" or "alt+q"
+func KeyEventToString(event *tcell.EventKey) string {
 	var parts []string
 
-	// Handle modifiers
 	if event.Modifiers()&tcell.ModCtrl != 0 {
 		parts = append(parts, "ctrl")
 	}
@@ -56,12 +20,9 @@ func keyEventToString(event *tcell.EventKey) string {
 		parts = append(parts, "shift")
 	}
 
-	// Handle the key itself
 	if event.Rune() != 0 {
-		// Printable character
 		parts = append(parts, string(event.Rune()))
 	} else {
-		// Special key
 		switch event.Key() {
 		case tcell.KeyF1:
 			parts = append(parts, "f1")
@@ -116,30 +77,9 @@ func keyEventToString(event *tcell.EventKey) string {
 		case tcell.KeyRight:
 			parts = append(parts, "right")
 		default:
-			return "" // Unknown key
+			return ""
 		}
 	}
 
 	return strings.Join(parts, "+")
-}
-
-// ParseShortcut parses a shortcut string (like "Ctrl+O") and returns the constituent parts
-func ParseShortcut(shortcut string) (hasCtrl, hasAlt, hasShift bool, key string) {
-	parts := strings.Split(strings.ToLower(shortcut), "+")
-
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		switch part {
-		case "ctrl":
-			hasCtrl = true
-		case "alt":
-			hasAlt = true
-		case "shift":
-			hasShift = true
-		default:
-			key = part
-		}
-	}
-
-	return
 }

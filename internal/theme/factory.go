@@ -3,7 +3,6 @@ package theme
 import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
-	"twist/internal/components"
 )
 
 // ThemedComponents provides convenience factory functions for creating themed components
@@ -116,34 +115,6 @@ func (tc *ThemedComponents) NewMenuList() *tview.List {
 	return list
 }
 
-// NewTwistMenu creates a new TwistMenu with themed styling and custom borders
-func (tc *ThemedComponents) NewTwistMenu() *components.TwistMenu {
-	colors := tc.theme.MenuColors()
-	borderStyle := tc.theme.MenuBorderStyle()
-	borderChars := components.NewSimpleBorderChars(borderStyle)
-
-	menu := components.NewTwistMenu(borderChars)
-
-	// Set the overall background color
-	menu.SetBackgroundColor(colors.Background)
-
-	// Set the main text style with explicit background color for unselected items
-	mainStyle := tcell.StyleDefault.
-		Foreground(colors.Foreground).
-		Background(colors.Background)
-	menu.SetMainTextStyle(mainStyle)
-
-	// Set selected item colors
-	menu.SetSelectedTextColor(colors.SelectedFg)
-	menu.SetSelectedBackgroundColor(colors.SelectedBg)
-
-	// Set border styling
-	menu.SetBorderColor(colors.Foreground)
-	menu.SetBorder(true)
-
-	return menu
-}
-
 // NewStatusBar creates a new text view styled for status bars
 func (tc *ThemedComponents) NewStatusBar() *tview.TextView {
 	textView := tview.NewTextView()
@@ -244,11 +215,6 @@ func NewFlex() *tview.Flex {
 func NewMenuList() *tview.List {
 	updateDefaultFactory()
 	return defaultFactory.NewMenuList()
-}
-
-func NewTwistMenu() *components.TwistMenu {
-	updateDefaultFactory()
-	return defaultFactory.NewTwistMenu()
 }
 
 func NewStatusBar() *tview.TextView {

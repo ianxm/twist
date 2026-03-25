@@ -2,25 +2,10 @@ package menus
 
 import (
 	"twist/internal/api"
-	twistComponents "twist/internal/components"
 	"twist/internal/log"
 )
 
-// MenuHandler interface that all menu implementations must satisfy
-type MenuHandler interface {
-	HandleMenuAction(action string, app AppInterface) error
-	GetMenuItems() []twistComponents.MenuItem
-}
-
-// ModalAwareMenuHandler is an optional interface that menu handlers can implement
-// to indicate whether their actions create modals, eliminating the need for hardcoded lists
-type ModalAwareMenuHandler interface {
-	MenuHandler
-	ActionCreatesModal(action string) bool
-}
-
 // AppInterface defines the methods that menu handlers need from TwistApp
-// This prevents circular dependencies and makes testing easier
 type AppInterface interface {
 	// Connection management
 	Connect(address string)
@@ -38,7 +23,8 @@ type AppInterface interface {
 
 	// Modal management
 	ShowModal(title, text string, buttons []string, callback func(int, string))
-	ShowInputDialog(pageName string, dialog interface{}) // For showing custom input dialogs
+	ShowInputDialog(pageName string, dialog interface{})
+	ShowBurstDialog(onSend func(string), onCancel func())
 	CloseModal()
 
 	// Terminal info for dynamic sizing
@@ -51,161 +37,95 @@ type AppInterface interface {
 
 	// Proxy API access
 	GetProxyAPI() api.ProxyAPI
-	IsConnected() bool // Returns true if connected to a game server
+	IsConnected() bool
 }
 
-// MenuManager coordinates all menu handlers
+// MenuManager coordinates menu structure, enablement, and action dispatch.
+// It does NOT handle keyboard shortcuts — that's ShortcutManager's job.
 type MenuManager struct {
-	registry *MenuRegistry
+	registry MenuRegistry
+	actions  map[string]MenuItem // "MenuName:ItemName" → item
 }
 
-// NewMenuManager creates a new menu manager
-func NewMenuManager() *MenuManager {
-	return &MenuManager{
-		registry: NewMenuRegistry(),
-	}
-}
-
-// HandleMenuAction delegates to the appropriate menu handler
-func (mm *MenuManager) HandleMenuAction(menuName, action string, app AppInterface) error {
-	handler := mm.registry.GetMenuHandler(menuName)
-	if handler == nil {
-		log.Info("MenuManager: No handler found for menu", "menu", menuName)
-		return nil // Don't error, just ignore unhandled menus
+func NewMenuManager(registry MenuRegistry) *MenuManager {
+	mgr := &MenuManager{
+		registry: registry,
+		actions:  make(map[string]MenuItem),
 	}
 
-	// Check if the action corresponds to an enabled menu item
-	enabledItems := mm.GetEnabledMenuItems(menuName, app)
-	for _, enabledItem := range enabledItems {
-		if enabledItem.MenuItem.Label == action {
-			if !enabledItem.Enabled {
-				log.Info("MenuManager: Action is disabled for menu", "action", action, "menu", menuName)
-				return nil // Don't execute disabled actions
-			}
-			break
+	for _, m := range registry.GetMenus() {
+		for _, item := range m.Items {
+			mgr.actions[m.Name+":"+item.Name] = item
 		}
 	}
-
-	return handler.HandleMenuAction(action, app)
+	return mgr
 }
 
-// GetMenuItems returns menu items for a specific menu
-func (mm *MenuManager) GetMenuItems(menuName string) []twistComponents.MenuItem {
+func (mm *MenuManager) HandleAction(menuName, itemName string, app AppInterface) error {
+	actionKey := menuName + ":" + itemName
+
+	if item, exists := mm.actions[actionKey]; exists {
+		if item.IsEnabled != nil && !item.IsEnabled(app) {
+			log.Info("MenuManager: Action is disabled", "action", actionKey)
+			return nil
+		}
+		if item.HandleAction != nil {
+			return item.HandleAction(app)
+		}
+	}
+	return nil
+}
+
+func (mm *MenuManager) GetMenuItems(menuName string) []MenuItem {
 	return mm.registry.GetMenuItems(menuName)
 }
 
-// GetEnabledMenuItems returns menu items with enablement status evaluated
 func (mm *MenuManager) GetEnabledMenuItems(menuName string, app AppInterface) []EnabledMenuItem {
-	config := mm.registry.GetMenuConfig(menuName)
-	if config == nil {
+	items := mm.registry.GetMenuItems(menuName)
+	if items == nil {
 		return []EnabledMenuItem{}
 	}
 
-	result := make([]EnabledMenuItem, len(config.Items))
-	for i, item := range config.Items {
-		enabled := true // Default to enabled
-
-		// Check if we have an enablement checker for this item
-		if i < len(config.ItemEnabledChecks) && config.ItemEnabledChecks[i] != nil {
-			enabled = config.ItemEnabledChecks[i](app)
+	result := make([]EnabledMenuItem, len(items))
+	for i, item := range items {
+		enabled := true
+		if item.IsEnabled != nil {
+			enabled = item.IsEnabled(app)
 		}
-
-		result[i] = EnabledMenuItem{
-			MenuItem: item,
-			Enabled:  enabled,
-		}
+		result[i] = EnabledMenuItem{MenuItem: item, Enabled: enabled}
 	}
-
 	return result
 }
 
 // EnabledMenuItem wraps a MenuItem with its enabled status
 type EnabledMenuItem struct {
-	MenuItem twistComponents.MenuItem
+	MenuItem MenuItem
 	Enabled  bool
 }
 
-// GetMenuItem returns the wrapped MenuItem (implements EnabledMenuItemInterface)
-func (e EnabledMenuItem) GetMenuItem() twistComponents.MenuItem {
-	return e.MenuItem
-}
-
-// IsEnabled returns whether this menu item is enabled (implements EnabledMenuItemInterface)
-func (e EnabledMenuItem) IsEnabled() bool {
-	return e.Enabled
-}
-
-// GetMenuOptions returns string options for backward compatibility
 func (mm *MenuManager) GetMenuOptions(menuName string) []string {
-	items := mm.GetMenuItems(menuName)
-	options := make([]string, len(items))
-	for i, item := range items {
-		options[i] = item.Label
-	}
-	return options
+	return mm.registry.GetMenuOptions(menuName)
 }
 
-// GetMenuNames returns all menu names in order
 func (mm *MenuManager) GetMenuNames() []string {
 	return mm.registry.GetMenuNames()
 }
 
-// GetDropdownPosition calculates auto-positioned dropdown location
 func (mm *MenuManager) GetDropdownPosition(menuName string) int {
 	return mm.registry.CalculateDropdownPosition(menuName)
 }
 
-// GetAllShortcuts returns all keyboard shortcuts for help
-func (mm *MenuManager) GetAllShortcuts() map[string]string {
-	return mm.registry.GetAllKeyboardShortcuts()
-}
-
-// ActionCreatesModal checks if a menu action creates a modal dialog
 func (mm *MenuManager) ActionCreatesModal(menuName, action string) bool {
-	// First check if the menu item has CreatesModal set to true
 	items := mm.GetMenuItems(menuName)
-	log.Info("ActionCreatesModal: Checking menu/action against items", "menu", menuName, "action", action, "count", len(items))
 	for _, item := range items {
-		log.Info("ActionCreatesModal: Item", "label", item.Label, "creates_modal", item.CreatesModal)
-		if item.Label == action {
-			log.Info("ActionCreatesModal: Found matching item", "creates_modal", item.CreatesModal)
+		if item.Name == action {
 			return item.CreatesModal
 		}
 	}
-	log.Info("ActionCreatesModal: No matching item found, checking legacy handler")
-
-	// Fallback: check legacy ModalAwareMenuHandler interface for compatibility
-	handler := mm.registry.GetMenuHandler(menuName)
-	if handler == nil {
-		log.Info("ActionCreatesModal: No handler found")
-		return false
-	}
-
-	if modalAware, ok := handler.(ModalAwareMenuHandler); ok {
-		result := modalAware.ActionCreatesModal(action)
-		log.Info("ActionCreatesModal: Legacy handler returned", "result", result)
-		return result
-	}
-
-	log.Info("ActionCreatesModal: No legacy handler, returning false")
-	// Default: assume actions don't create modals unless explicitly declared
 	return false
 }
 
-// HandleShortcut processes a keyboard shortcut
-func (mm *MenuManager) HandleShortcut(shortcut string, app AppInterface) bool {
-	menuName, action, found := mm.registry.GetShortcutHandler(shortcut)
-	if !found {
-		return false
-	}
-
-	if action == "" {
-		// This is a menu shortcut (like Alt+S), not implemented here
-		// Menu shortcuts are handled by input handlers
-		return false
-	}
-
-	// This is an action shortcut (like Alt+Q for Quit)
-	err := mm.HandleMenuAction(menuName, action, app)
-	return err == nil
+// GetRegistry returns the underlying registry for shortcut registration
+func (mm *MenuManager) GetRegistry() MenuRegistry {
+	return mm.registry
 }

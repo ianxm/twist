@@ -21,17 +21,15 @@ type InputHandler struct {
 	app               *tview.Application
 	inputMode         InputMode
 	modalVisible      bool
-	isDropdownVisible func() bool // Function to check if dropdown is visible
+	isDropdownVisible func() bool
 
 	// Callbacks
-	onConnect              func(string)
-	onDisconnect           func()
-	onExit                 func()
-	onShowModal            func(string, []string, func(string))
-	onShowDropdown         func(string, []string, func(string))
-	onCloseModal           func()
-	onSendCommand          func(string)
-	onShowConnectionDialog func()
+	onConnect     func(string)
+	onDisconnect  func()
+	onExit        func()
+	onShowModal   func(string, []string, func(string))
+	onCloseModal  func()
+	onSendCommand func(string)
 }
 
 // NewInputHandler creates a new input handler
@@ -59,16 +57,6 @@ func (ih *InputHandler) SetCallbacks(
 	ih.onSendCommand = onSendCommand
 }
 
-// SetConnectionDialogCallback sets the callback for showing connection dialog
-func (ih *InputHandler) SetConnectionDialogCallback(onShowConnectionDialog func()) {
-	ih.onShowConnectionDialog = onShowConnectionDialog
-}
-
-// SetDropdownCallback sets the callback for dropdown menus
-func (ih *InputHandler) SetDropdownCallback(onShowDropdown func(string, []string, func(string))) {
-	ih.onShowDropdown = onShowDropdown
-}
-
 // SetDropdownVisibilityChecker sets the function to check if dropdown is visible
 func (ih *InputHandler) SetDropdownVisibilityChecker(isDropdownVisible func() bool) {
 	ih.isDropdownVisible = isDropdownVisible
@@ -84,14 +72,13 @@ func (ih *InputHandler) SetModalVisible(visible bool) {
 	ih.modalVisible = visible
 }
 
-// HandleKeyEvent handles key events based on current input mode
+// HandleKeyEvent handles key events based on current input mode.
+// Note: Menu shortcuts (Alt+key) are handled by handleGlobalKeys before this is called.
 func (ih *InputHandler) HandleKeyEvent(event *tcell.EventKey) *tcell.EventKey {
-	// Modal mode handling
 	if ih.modalVisible {
 		return ih.handleModalInput(event)
 	}
 
-	// Mode-specific handling
 	switch ih.inputMode {
 	case InputModeMenu:
 		return ih.handleMenuInput(event)
@@ -102,73 +89,24 @@ func (ih *InputHandler) HandleKeyEvent(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
-// handleMenuInput handles input in menu mode
+// handleMenuInput handles input in menu navigation mode
 func (ih *InputHandler) handleMenuInput(event *tcell.EventKey) *tcell.EventKey {
-	// Handle Alt+Letter combinations
-	if event.Key() == tcell.KeyRune && event.Modifiers()&tcell.ModAlt != 0 {
-		switch event.Rune() {
-		case 's', 'S':
-			ih.showSessionMenu()
-			return nil
-		case 'v', 'V':
-			ih.showViewMenu()
-			return nil
-		case 't', 'T':
-			ih.showTerminalMenu()
-			return nil
-		case 'h', 'H':
-			ih.showHelpMenu()
-			return nil
-		case 'c', 'C':
-			ih.showConnectDialog()
-			return nil
-		case 'd', 'D':
-			if ih.onDisconnect != nil {
-				ih.onDisconnect()
-			}
-			return nil
-		}
-	}
-
 	switch event.Key() {
 	case tcell.KeyTab:
 		ih.SetInputMode(InputModeTerminal)
 		return nil
 	}
-
 	return event
 }
 
 // handleTerminalInput handles input in terminal mode
 func (ih *InputHandler) handleTerminalInput(event *tcell.EventKey) *tcell.EventKey {
-	// Handle Alt+Letter combinations for menu access
-	if event.Key() == tcell.KeyRune && event.Modifiers()&tcell.ModAlt != 0 {
-		switch event.Rune() {
-		case 's', 'S':
-			ih.showSessionMenu()
-			return nil
-		case 'v', 'V':
-			ih.showViewMenu()
-			return nil
-		case 't', 'T':
-			ih.showTerminalMenu()
-			return nil
-		case 'h', 'H':
-			ih.showHelpMenu()
-			return nil
-		case 'c', 'C':
-			ih.showConnectDialog()
-			return nil
-		case 'd', 'D':
-			if ih.onDisconnect != nil {
-				ih.onDisconnect()
-			}
-			return nil
-		}
-	}
-
-	// Don't send Control key combinations (except let tview handle them)
+	// Don't send Control key combinations (let tview handle them)
 	if event.Modifiers()&tcell.ModCtrl != 0 {
+		return event
+	}
+	// Don't send Alt key combinations (handled by handleGlobalKeys via MenuManager)
+	if event.Modifiers()&tcell.ModAlt != 0 {
 		return event
 	}
 
@@ -179,81 +117,24 @@ func (ih *InputHandler) handleTerminalInput(event *tcell.EventKey) *tcell.EventK
 	case tcell.KeyEscape:
 		ih.SetInputMode(InputModeMenu)
 		return nil
-	case tcell.KeyEnter:
-		// Don't handle Enter in the input handler - let the focused component handle it
-		// This allows menus, modals, and terminal input to handle Enter naturally
-		return event
-	case tcell.KeyBackspace, tcell.KeyBackspace2, tcell.KeyDelete:
-		// Let the terminal component handle these keys directly
-		return event
-	case tcell.KeyUp, tcell.KeyDown, tcell.KeyRight, tcell.KeyLeft, tcell.KeyHome, tcell.KeyEnd, tcell.KeyPgUp, tcell.KeyPgDn:
-		// Don't send navigation keys to terminal - let tview handle them for UI navigation
-		return event
 	}
 
-	// Let the terminal component handle character keys directly
-	if event.Key() == tcell.KeyRune {
-		return event
-	}
-
+	// Let the terminal component handle all other keys directly
 	return event
 }
 
-// handleModalInput handles input when a modal is visible
+// handleModalInput handles input when a modal dialog is visible
 func (ih *InputHandler) handleModalInput(event *tcell.EventKey) *tcell.EventKey {
-	log.Info("handleModalInput", "key", event.Key(), "rune", event.Rune(), "modifiers", event.Modifiers())
+	log.Info("handleModalInput", "key", event.Key(), "rune", event.Rune())
 
 	switch event.Key() {
 	case tcell.KeyEscape:
-		log.Info("handleModalInput: ESC pressed, closing modal")
 		if ih.onCloseModal != nil {
 			ih.onCloseModal()
 		}
 		return nil
-	case tcell.KeyEnter:
-		log.Info("handleModalInput: ENTER pressed, passing to focused component")
 	}
 
 	// Pass all other events to the focused component (form, modal, etc.)
-	// This allows Enter, Tab, typing, etc. to work in modal dialogs
 	return event
-}
-
-// Menu display functions
-func (ih *InputHandler) showSessionMenu() {
-	ih.showMenu("Session")
-}
-
-func (ih *InputHandler) showViewMenu() {
-	ih.showMenu("View")
-}
-
-func (ih *InputHandler) showTerminalMenu() {
-	ih.showMenu("Terminal")
-}
-
-func (ih *InputHandler) showHelpMenu() {
-	ih.showMenu("Help")
-}
-
-// showMenu displays any menu using the centralized menu system
-func (ih *InputHandler) showMenu(menuName string) {
-	if ih.onShowDropdown != nil {
-		// Use empty options - showDropdownMenu in app.go will get the real items from the menu manager
-		ih.onShowDropdown(menuName, []string{}, func(selected string) {
-			// This callback is not used - showDropdownMenu handles everything
-		})
-	}
-}
-
-func (ih *InputHandler) showConnectDialog() {
-	if ih.onShowConnectionDialog != nil {
-		ih.onShowConnectionDialog()
-	} else {
-		// Fallback to direct connection
-		if ih.onConnect != nil {
-			ih.onConnect("twgs.geekm0nkey.com:23")
-		} else {
-		}
-	}
 }

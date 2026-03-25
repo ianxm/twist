@@ -17,7 +17,6 @@ func TestTUIImportRestrictions(t *testing.T) {
 		"twist/internal/theme",      // UI theming (until shared)
 		"twist/internal/ansi",       // ANSI processing (until shared)
 		"twist/internal/terminal",   // Terminal utilities (until shared)
-		"twist/internal/components", // UI components (until shared)
 		"twist/internal/tui",        // TUI can import its own subpackages
 		"github.com/",               // Third-party packages
 		"golang.org/",               // Standard library extensions

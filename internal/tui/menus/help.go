@@ -1,60 +1,34 @@
 package menus
 
-import (
-	twistComponents "twist/internal/components"
-	"twist/internal/log"
-)
-
-// HelpMenu handles Help menu actions
-type HelpMenu struct{}
-
-// NewHelpMenu creates a new help menu handler
-func NewHelpMenu() *HelpMenu {
-	return &HelpMenu{}
-}
-
-// ActionCreatesModal implements ModalAwareMenuHandler
-func (h *HelpMenu) ActionCreatesModal(action string) bool {
-	switch action {
-	case "Keyboard Shortcuts", "About", "User Manual":
-		return true // These actions create modal dialogs
-	default:
-		return false
+func NewHelpMenu() Menu {
+	return Menu{
+		Name:     "Help",
+		Shortcut: "Alt+H",
+		Items: []MenuItem{
+			{
+				Name:         "Keyboard Shortcuts",
+				Shortcut:     "F1",
+				CreatesModal: true,
+				IsEnabled:    alwaysEnabled,
+				HandleAction: handleKeyboardShortcuts,
+			},
+			{
+				Name:         "About",
+				CreatesModal: true,
+				IsEnabled:    alwaysEnabled,
+				HandleAction: handleAbout,
+			},
+			{
+				Name:         "User Manual",
+				CreatesModal: true,
+				IsEnabled:    alwaysEnabled,
+				HandleAction: handleUserManual,
+			},
+		},
 	}
 }
 
-// GetMenuItems returns the menu items for the Help menu
-func (h *HelpMenu) GetMenuItems() []twistComponents.MenuItem {
-	return []twistComponents.MenuItem{
-		{Label: "Keyboard Shortcuts", Shortcut: "F1"},
-		{Label: "About", Shortcut: ""},
-		{Label: "User Manual", Shortcut: ""},
-	}
-}
-
-// HandleMenuAction processes Help menu actions
-func (h *HelpMenu) HandleMenuAction(action string, app AppInterface) error {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Error("PANIC in HelpMenu.HandleMenuAction", "error", r)
-		}
-	}()
-
-	switch action {
-	case "Keyboard Shortcuts":
-		return h.handleKeyboardShortcuts(app)
-	case "About":
-		return h.handleAbout(app)
-	case "User Manual":
-		return h.handleUserManual(app)
-	default:
-		log.Info("HelpMenu: Unknown action", "action", action)
-		return nil
-	}
-}
-
-// handleKeyboardShortcuts shows the keyboard shortcuts help
-func (h *HelpMenu) handleKeyboardShortcuts(app AppInterface) error {
+func handleKeyboardShortcuts(app AppInterface) error {
 	helpText := "TWIST Terminal Interface - Keyboard Shortcuts\n\n" +
 		"Menu Navigation:\n" +
 		"Alt+S = Session menu\n" +
@@ -78,8 +52,7 @@ func (h *HelpMenu) handleKeyboardShortcuts(app AppInterface) error {
 	return nil
 }
 
-// handleAbout shows version and build information
-func (h *HelpMenu) handleAbout(app AppInterface) error {
+func handleAbout(app AppInterface) error {
 	aboutText := "TWIST Terminal Interface\n\n" +
 		"Version: " + app.GetVersion() + "\n" +
 		"Commit: " + app.GetCommit() + "\n" +
@@ -100,8 +73,7 @@ func (h *HelpMenu) handleAbout(app AppInterface) error {
 	return nil
 }
 
-// handleUserManual shows user manual information (not implemented yet)
-func (h *HelpMenu) handleUserManual(app AppInterface) error {
+func handleUserManual(app AppInterface) error {
 	app.ShowModal("User Manual",
 		"User Manual feature not yet implemented.\n\n"+
 			"For now, use F1 or Help → Keyboard Shortcuts\n"+

@@ -2,7 +2,6 @@ package theme
 
 import (
 	"github.com/gdamore/tcell/v2"
-	"twist/internal/components"
 )
 
 // Standard ANSI 16-color palette using correct hex values
@@ -141,8 +140,8 @@ func (t *TelixTheme) BorderStyle() BorderStyle {
 
 // MenuBorderStyle returns the border style for menus
 // Using single-line box drawing characters
-func (t *TelixTheme) MenuBorderStyle() components.MenuBorderStyle {
-	return components.MenuBorderStyleSingle
+func (t *TelixTheme) MenuBorderStyle() MenuBorderStyle {
+	return MenuBorderStyleSingle
 }
 
 // ANSIColorPalette returns the 16-color ANSI palette for this theme

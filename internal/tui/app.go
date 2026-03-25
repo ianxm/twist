@@ -2,9 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"runtime/debug"
 	"time"
 	coreapi "twist/internal/api"
-	twistComponents "twist/internal/components"
 	"twist/internal/log"
 	"twist/internal/terminal"
 	"twist/internal/theme"
@@ -38,7 +38,7 @@ type TwistApp struct {
 
 	// Input handling
 	inputHandler    *handlers.InputHandler
-	globalShortcuts *twistComponents.GlobalShortcutManager
+	shortcutManager *components.ShortcutManager
 
 	// Menu system
 	menuManager *menus.MenuManager
@@ -75,7 +75,8 @@ func NewApplication() *TwistApp {
 	sixelLayer := components.NewSixelLayer()
 
 	// Create menu manager first
-	menuManager := menus.NewMenuManager()
+	registry := menus.NewAppMenuRegistry()
+	menuManager := menus.NewMenuManager(registry)
 
 	// Create UI components
 	menuComp := components.NewMenuComponent(menuManager)
@@ -100,7 +101,7 @@ func NewApplication() *TwistApp {
 		panelComponent:     panelComp,
 		statusComponent:    statusComp,
 		inputHandler:       inputHandler,
-		globalShortcuts:    twistComponents.NewGlobalShortcutManager(),
+		shortcutManager:    components.NewShortcutManager(),
 		menuManager:        menuManager,
 		sixelLayer:         sixelLayer,
 		panelsVisible:      false, // Start with panels hidden
@@ -161,7 +162,7 @@ func NewApplication() *TwistApp {
 
 	twistApp.setupUI()
 	twistApp.setupInputHandling()
-	twistApp.registerMenuShortcuts() // Register all menu shortcuts globally
+	twistApp.registerShortcuts(registry)
 	// twistApp.startUpdateWorker() // Commented out - appears to be unused legacy code causing double redraws
 
 	// Auto-show connection dialog on startup for easy testing
@@ -370,7 +371,6 @@ func (ta *TwistApp) animatePanels(show bool) {
 
 // setupInputHandling configures input event handling
 func (ta *TwistApp) setupInputHandling() {
-	// Set up input handler callbacks
 	ta.inputHandler.SetCallbacks(
 		ta.connect,       // onConnect
 		ta.disconnect,    // onDisconnect
@@ -380,47 +380,38 @@ func (ta *TwistApp) setupInputHandling() {
 		ta.sendCommand,   // onSendCommand
 	)
 
-	// Set up dropdown callback
-	ta.inputHandler.SetDropdownCallback(ta.showDropdownMenu)
-
-	// Set up dropdown visibility checker
 	ta.inputHandler.SetDropdownVisibilityChecker(ta.menuComponent.IsDropdownVisible)
 
-	// Set up connection dialog callback
-	ta.inputHandler.SetConnectionDialogCallback(ta.showConnectionDialog)
-
-	// Set up global input capture
 	ta.app.SetInputCapture(ta.handleGlobalKeys)
 }
 
-// registerMenuShortcuts registers all menu item shortcuts globally at startup
-func (ta *TwistApp) registerMenuShortcuts() {
-
-	// Register Session menu shortcuts
-	sessionItems := []twistComponents.MenuItem{
-		{Label: "Connect", Shortcut: ""},
-		{Label: "Recent Connections", Shortcut: ""},
-		{Label: "Disconnect", Shortcut: ""},
-		{Label: "Save Session", Shortcut: ""},
-		{Label: "Quit", Shortcut: "Alt+Q"},
-	}
-
-	for _, item := range sessionItems {
-		if item.Shortcut != "" {
-			label := item.Label // Capture for closure
-			shortcut := item.Shortcut
-			ta.globalShortcuts.RegisterShortcut(shortcut, func() {
-				// Handle the menu item action
-				switch label {
-				case "Quit":
-					ta.exit()
-					// Add other menu item actions as needed
-				}
+// registerShortcuts walks the menu registry and registers all shortcuts
+// with the app-level ShortcutManager.
+func (ta *TwistApp) registerShortcuts(registry menus.MenuRegistry) {
+	for _, m := range registry.GetMenus() {
+		// Menu-open shortcuts (Alt+S → open Session menu)
+		if m.Shortcut != "" {
+			menuName := m.Name
+			ta.shortcutManager.Register(m.Shortcut, func() {
+				options := ta.menuManager.GetMenuOptions(menuName)
+				ta.showDropdownMenu(menuName, options, func(selected string) {})
 			})
 		}
-	}
 
-	// TODO: Register shortcuts for other menus (Edit, View, Terminal, Help) as they get shortcuts
+		// Item action shortcuts (Alt+Q → Quit, F1 → Help)
+		for _, item := range m.Items {
+			if item.Shortcut != "" {
+				itemCopy := item
+				ta.shortcutManager.Register(item.Shortcut, func() {
+					if itemCopy.IsEnabled == nil || itemCopy.IsEnabled(ta) {
+						if itemCopy.HandleAction != nil {
+							itemCopy.HandleAction(ta)
+						}
+					}
+				})
+			}
+		}
+	}
 }
 
 // SetInitialScript sets the script to load on connection
@@ -814,6 +805,9 @@ func (ta *TwistApp) closeModal() {
 	ta.pages.RemovePage("dropdown-menu")
 	ta.pages.RemovePage("connection-dialog")
 	ta.pages.RemovePage("burst-input-dialog")
+
+	// Restore focus to terminal
+	ta.app.SetFocus(ta.terminalComponent.GetView())
 }
 
 // startUpdateWorker starts the background update worker
@@ -832,100 +826,50 @@ func (ta *TwistApp) startUpdateWorker() {
 func (ta *TwistApp) handleGlobalKeys(event *tcell.EventKey) *tcell.EventKey {
 	log.Info("handleGlobalKeys", "key", event.Key(), "rune", event.Rune(), "modal_visible", ta.modalVisible)
 
-	// Ctrl+C - exit the application (check multiple ways)
-	if event.Key() == tcell.KeyCtrlC {
+	// Ctrl+C - exit the application
+	if event.Key() == tcell.KeyCtrlC || event.Key() == tcell.KeyETX {
 		ta.exit()
 		return nil
 	}
-
-	// Also check for Ctrl+C via rune and modifiers
 	if event.Rune() == 'c' && event.Modifiers()&tcell.ModCtrl != 0 {
 		ta.exit()
-		return nil
-	}
-
-	// Also check for key code 3 (ETX) which is the ASCII value for Ctrl+C
-	if event.Key() == tcell.KeyETX {
-		ta.exit()
-		return nil
-	}
-
-	// Check global shortcuts first (including menu shortcuts like Alt+Q)
-	if ta.globalShortcuts.HandleKeyEvent(event) {
 		return nil
 	}
 
 	// ESC key handling
 	if event.Key() == tcell.KeyEscape {
 		if ta.modalVisible {
-			// Close modal if visible
 			ta.closeModal()
 			return nil
 		} else if ta.connected {
-			// Stop all scripts if connected and no modal is visible
 			ta.stopAllScripts()
 			return nil
 		}
 	}
 
-	// F1 key for help
-	if event.Key() == tcell.KeyF1 {
-		ta.showHelpModal()
-		return nil
+	// Let ShortcutManager handle all registered shortcuts (menu-open and item actions)
+	keyStr := components.KeyEventToString(event)
+	if keyStr != "" {
+		if ta.shortcutManager.Handle(keyStr) {
+			return nil
+		}
 	}
 
-	// Pass to input handler for menu Alt+keys and other keys
+	// Pass to input handler for remaining keys
 	return ta.inputHandler.HandleKeyEvent(event)
-}
-
-// showHelpModal displays help information
-func (ta *TwistApp) showHelpModal() {
-	// Close any existing dropdown menus before showing help modal
-	ta.pages.RemovePage("dropdown-menu")
-	if ta.menuComponent.IsDropdownVisible() {
-		ta.menuComponent.HideDropdown()
-	}
-
-	helpText := "TWIST Terminal Interface\n\n" +
-		"Menu Navigation:\n" +
-		"Alt+S = Session menu\n" +
-		"Alt+V = View menu\n" +
-		"Alt+T = Terminal menu\n" +
-		"Alt+H = Help menu\n" +
-		"Alt+C = Connect\n" +
-		"Alt+D = Disconnect\n" +
-		"Alt+Q = Quit\n\n" +
-		"Function Keys:\n" +
-		"F1 = Help (this screen)\n" +
-		"ESC = Close dialogs or stop all scripts\n\n" +
-		"Script management is available in the View menu."
-
-	modal := tview.NewModal().
-		SetText(helpText).
-		AddButtons([]string{"Close"}).
-		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-			ta.closeModal()
-		})
-	ta.pages.AddPage("help-modal", modal, true, true)
-	ta.modalVisible = true
 }
 
 // showDropdownMenu displays a dropdown menu below the menu bar
 func (ta *TwistApp) showDropdownMenu(menuName string, options []string, callback func(string)) {
 
-	// Get regular menu items from the centralized registry
 	items := ta.menuManager.GetMenuItems(menuName)
-
-	// Get enabled states for each item
 	enabledItems := ta.menuManager.GetEnabledMenuItems(menuName, ta)
 
-	// Use menu manager for handling menu actions
 	dropdownCallback := func(selected string) {
 		// Check if the selected item is enabled
 		for _, enabledItem := range enabledItems {
-			if enabledItem.MenuItem.Label == selected {
+			if enabledItem.MenuItem.Name == selected {
 				if !enabledItem.Enabled {
-					// Item is disabled, don't execute action or close menu
 					log.Info("Ignoring selection of disabled menu item", "item", selected)
 					return
 				}
@@ -933,27 +877,22 @@ func (ta *TwistApp) showDropdownMenu(menuName string, options []string, callback
 			}
 		}
 
-		// Handle the menu action through the menu manager
-		err := ta.menuManager.HandleMenuAction(menuName, selected, ta)
+		err := ta.menuManager.HandleAction(menuName, selected, ta)
 		if err != nil {
 			log.Info("Error handling menu action", "menu", menuName, "action", selected, "error", err)
 		}
 
-		// Check if this action creates a modal - if so, don't close the dropdown modal
 		if ta.menuManager.ActionCreatesModal(menuName, selected) {
-			// Action creates a modal, preserve modal state
+			// Action creates a modal — don't close the dropdown/modal state
 		} else {
-			// Action doesn't create a modal, safe to close dropdown/modal state
 			ta.closeModal()
 		}
 	}
 
 	dropdown := ta.menuComponent.ShowDropdown(menuName, items, dropdownCallback, func(direction string) {
-		// Handle left/right arrow navigation between menus
 		ta.navigateMenu(menuName, direction)
-	}, ta.globalShortcuts)
+	})
 
-	// Apply enabled/disabled states to the dropdown items
 	ta.applyEnabledStates(dropdown, enabledItems)
 
 	ta.pages.AddPage("dropdown-menu", dropdown, true, true)
@@ -1165,6 +1104,12 @@ func (ta *TwistApp) ShowInputDialog(pageName string, dialog interface{}) {
 // CloseModal closes the currently displayed modal
 func (ta *TwistApp) CloseModal() {
 	ta.closeModal()
+}
+
+// ShowBurstDialog displays the burst command input dialog
+func (ta *TwistApp) ShowBurstDialog(onSend func(string), onCancel func()) {
+	dialog := components.NewBurstInputDialog(onSend, onCancel)
+	ta.ShowInputDialog("burst-input-dialog", dialog)
 }
 
 // GetVersion returns the application version
