@@ -18,7 +18,6 @@ func NewAppMenuRegistry() *AppMenuRegistry {
 	mr.register(NewSessionMenu())
 	mr.register(NewViewMenu())
 	mr.register(NewScriptsMenu())
-	mr.register(NewGameMenu())
 	mr.register(NewTerminalMenu())
 	mr.register(NewHelpMenu())
 	return mr

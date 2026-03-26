@@ -15,6 +15,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"golang.org/x/term"
 )
 
 // TwistApp represents the main tview application - refactored version
@@ -805,6 +806,7 @@ func (ta *TwistApp) closeModal() {
 	ta.pages.RemovePage("dropdown-menu")
 	ta.pages.RemovePage("connection-dialog")
 	ta.pages.RemovePage("burst-input-dialog")
+	ta.pages.RemovePage("scrollable-modal")
 
 	// Restore focus to terminal
 	ta.app.SetFocus(ta.terminalComponent.GetView())
@@ -1057,11 +1059,25 @@ func (ta *TwistApp) ShowModal(title, text string, buttons []string, callback fun
 	ta.modalVisible = true
 }
 
-// GetTerminalWidth returns the current terminal width for dynamic sizing
+// GetTerminalWidth returns the current terminal width
 func (ta *TwistApp) GetTerminalWidth() int {
-	// Use a reasonable default if we can't get the actual terminal size
-	// Most terminal modals are comfortable around 60-80 characters wide
-	return 120 // Default terminal width assumption
+	_, w, _ := ta.getScreenSize()
+	return w
+}
+
+// GetTerminalHeight returns the current terminal height
+func (ta *TwistApp) GetTerminalHeight() int {
+	_, _, h := ta.getScreenSize()
+	return h
+}
+
+func (ta *TwistApp) getScreenSize() (bool, int, int) {
+	// tview doesn't expose the screen directly, so use the terminal fd
+	w, h, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return false, 120, 40
+	}
+	return true, w, h
 }
 
 // ShowInputDialog displays a custom input dialog
@@ -1110,6 +1126,47 @@ func (ta *TwistApp) CloseModal() {
 func (ta *TwistApp) ShowBurstDialog(onSend func(string), onCancel func()) {
 	dialog := components.NewBurstInputDialog(onSend, onCancel)
 	ta.ShowInputDialog("burst-input-dialog", dialog)
+}
+
+// ShowScrollableModal displays a scrollable text view in a centered modal-like frame.
+// Use arrow keys/pgup/pgdn to scroll, ESC to close.
+func (ta *TwistApp) ShowScrollableModal(title, text string, height int) {
+	currentTheme := theme.Current()
+	dialogColors := currentTheme.DialogColors()
+
+	tv := tview.NewTextView().
+		SetText(text).
+		SetScrollable(true).
+		SetDynamicColors(false)
+	tv.SetBorder(true).
+		SetTitle(" " + title + " ").
+		SetTitleAlign(tview.AlignCenter).
+		SetBackgroundColor(dialogColors.Background).
+		SetBorderColor(dialogColors.Border).
+		SetTitleColor(dialogColors.Title)
+	tv.SetTextColor(dialogColors.Foreground)
+
+	tv.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			ta.closeModal()
+			return nil
+		}
+		return event
+	})
+
+	width := 30
+	flex := tview.NewFlex().
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(nil, 0, 1, false).
+			AddItem(tv, height, 0, true).
+			AddItem(nil, 0, 1, false), width, 0, true).
+		AddItem(nil, 0, 1, false)
+
+	ta.pages.AddPage("scrollable-modal", flex, true, true)
+	ta.app.SetFocus(tv)
+	ta.modalVisible = true
+	ta.inputHandler.SetModalVisible(true)
 }
 
 // GetVersion returns the application version

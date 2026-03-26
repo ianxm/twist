@@ -130,6 +130,22 @@ type ProxyAPI interface {
 	// Script Menu Operations
 	GetScriptList() ([]ScriptInfo, error)    // Lists all loaded scripts with status
 	SendBurstCommand(burstText string) error // Sends burst command to server
+
+	// Analysis
+	GetSectorAnalysisData() ([]SectorAnalysisView, error)
+}
+
+// SectorAnalysisView is a lightweight sector representation for analysis algorithms
+type SectorAnalysisView struct {
+	Number    int   `json:"number"`
+	Warps     []int `json:"warps"`
+	PortClass int   `json:"port_class"`
+}
+
+// BubbleInfo describes a bubble — a small cluster of sectors with a single gateway
+type BubbleInfo struct {
+	Size          int `json:"size"`
+	GatewaySector int `json:"gateway_sector"`
 }
 
 // TuiAPI defines notifications from Proxy to TUI

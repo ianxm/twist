@@ -557,6 +557,13 @@ func (p *Proxy) SendBurstCommand(burstText string) error {
 	return nil
 }
 
+func (p *Proxy) GetSectorAnalysisData() ([]api.SectorAnalysisView, error) {
+	if p.db == nil {
+		return nil, errors.New("no database loaded")
+	}
+	return p.db.GetAllSectorAnalysisData()
+}
+
 // LoadScript loads a script from file
 func (p *Proxy) LoadScript(filename string) error {
 	return p.scriptManager.LoadAndRunScript(filename)

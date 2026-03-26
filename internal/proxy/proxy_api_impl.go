@@ -309,7 +309,12 @@ func (p *ProxyApiImpl) SendBurstCommand(burstText string) error {
 		return errors.New("not connected")
 	}
 
-	// Delegate to the proxy's burst command implementation
-	// This reuses the exact same logic as the terminal menu system
 	return p.proxy.SendBurstCommand(burstText)
+}
+
+func (p *ProxyApiImpl) GetSectorAnalysisData() ([]api.SectorAnalysisView, error) {
+	if p.proxy == nil {
+		return nil, errors.New("not connected")
+	}
+	return p.proxy.db.GetAllSectorAnalysisData()
 }

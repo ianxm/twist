@@ -46,6 +46,7 @@ type Database interface {
 	GetPlayerStatsInfo() (api.PlayerStatsInfo, error)      // Phase 1: Straight SQL method
 	GetSectorInfo(sectorIndex int) (api.SectorInfo, error) // Phase 2: Straight SQL method
 	GetPortInfo(sectorIndex int) (*api.PortInfo, error)    // Phase 3: Straight SQL method
+	GetAllSectorAnalysisData() ([]api.SectorAnalysisView, error)
 	AddMessageToHistory(message TMessageHistory) error
 	GetMessageHistory(limit int) ([]TMessageHistory, error)
 
