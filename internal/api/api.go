@@ -148,6 +148,15 @@ type BubbleInfo struct {
 	GatewaySector int `json:"gateway_sector"`
 }
 
+// PairInfo describes a pair of adjacent trading ports with complementary classes
+type PairInfo struct {
+	Sector1  int `json:"sector1"`
+	Class1   int `json:"class1"`
+	Sector2  int `json:"sector2"`
+	Class2   int `json:"class2"`
+	Distance int `json:"distance"`
+}
+
 // TuiAPI defines notifications from Proxy to TUI
 //
 // CRITICAL: All methods must return immediately (within microseconds) to avoid

@@ -75,7 +75,7 @@ func handleBubbles(app AppInterface) error {
 
 	var text string
 	if len(filtered) == 0 {
-		text = "No bubbles (size ≥ 2) found in explored sectors."
+		text = " No bubbles (size ≥ 2) found in explored sectors.\n"
 	} else {
 		text = fmt.Sprintf(" Found %d bubble(s)\n\n", len(filtered))
 		text += " ┌─────────┬──────┐\n"
@@ -84,13 +84,12 @@ func handleBubbles(app AppInterface) error {
 		for _, b := range filtered {
 			text += fmt.Sprintf(" │ %7d │ %4d │\n", b.GatewaySector, b.Size)
 		}
-		text += " └─────────┴──────┘\n"
+		text += " └─────────┴──────┘"
 	}
 
-	// Content height: header (2) + table header (3) + rows + table footer (1) + padding (2)
-	contentHeight := len(filtered) + 8
+	contentHeight := len(filtered) + 11
 	termHeight := app.GetTerminalHeight()
-	maxHeight := termHeight - 6 // Leave room for top/bottom margins
+	maxHeight := termHeight - 6
 	if contentHeight > maxHeight {
 		contentHeight = maxHeight
 	}
@@ -98,14 +97,65 @@ func handleBubbles(app AppInterface) error {
 		contentHeight = 8
 	}
 
-	app.ShowScrollableModal("Bubbles", text, contentHeight)
+	app.ShowScrollableModal("Bubbles", text, 24, contentHeight)
 	return nil
 }
 
 func handlePairedPorts(app AppInterface) error {
-	app.ShowModal("Paired Ports", "Paired Ports\n\npair 1", []string{"Close"},
-		func(buttonIndex int, buttonLabel string) {
-			app.CloseModal()
-		})
+	proxyAPI := app.GetProxyAPI()
+	if proxyAPI == nil {
+		app.ShowModal("Paired Ports", "Not connected.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	currentSector, err := proxyAPI.GetCurrentSector()
+	if err != nil || currentSector == 0 {
+		app.ShowModal("Paired Ports", "Current sector unknown. Move to a sector first.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	sectors, err := proxyAPI.GetSectorAnalysisData()
+	if err != nil {
+		app.ShowModal("Paired Ports", fmt.Sprintf("Error loading sector data: %v", err), []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	pairs := analysis.FindPairs(sectors, currentSector)
+
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].Distance < pairs[j].Distance
+	})
+
+	var text string
+	if len(pairs) == 0 {
+		text = fmt.Sprintf(" No paired ports found within 10 hops of sector %d.\n", currentSector)
+	} else {
+		text = fmt.Sprintf(" %d pair(s) from sector %d\n\n", len(pairs), currentSector)
+		text += " ┌─────────┬───────┬─────────┬───────┬──────┐\n"
+		text += " │ Sector1 │ Class │ Sector2 │ Class │ Dist │\n"
+		text += " ├─────────┼───────┼─────────┼───────┼──────┤\n"
+		for _, p := range pairs {
+			c1 := api.PortClass(p.Class1).String()
+			c2 := api.PortClass(p.Class2).String()
+			text += fmt.Sprintf(" │ %7d │  %s  │ %7d │  %s  │ %4d │\n",
+				p.Sector1, c1, p.Sector2, c2, p.Distance)
+		}
+		text += " └─────────┴───────┴─────────┴───────┴──────┘"
+	}
+
+	contentHeight := len(pairs) + 11
+	termHeight := app.GetTerminalHeight()
+	maxHeight := termHeight - 6
+	if contentHeight > maxHeight {
+		contentHeight = maxHeight
+	}
+	if contentHeight < 8 {
+		contentHeight = 8
+	}
+
+	app.ShowScrollableModal("Paired Ports", text, 52, contentHeight)
 	return nil
 }

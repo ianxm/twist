@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"runtime/debug"
 	"time"
 	coreapi "twist/internal/api"
@@ -1129,42 +1130,74 @@ func (ta *TwistApp) ShowBurstDialog(onSend func(string), onCancel func()) {
 }
 
 // ShowScrollableModal displays a scrollable text view in a centered modal-like frame.
-// Use arrow keys/pgup/pgdn to scroll, ESC to close.
-func (ta *TwistApp) ShowScrollableModal(title, text string, height int) {
+// Use arrow keys/pgup/pgdn to scroll, Tab to switch to Close button, ESC to close.
+func (ta *TwistApp) ShowScrollableModal(title, text string, width, height int) {
 	currentTheme := theme.Current()
 	dialogColors := currentTheme.DialogColors()
+	bg := dialogColors.Background
 
-	tv := tview.NewTextView().
+	textView := tview.NewTextView().
 		SetText(text).
 		SetScrollable(true).
 		SetDynamicColors(false)
-	tv.SetBorder(true).
-		SetTitle(" " + title + " ").
-		SetTitleAlign(tview.AlignCenter).
-		SetBackgroundColor(dialogColors.Background).
-		SetBorderColor(dialogColors.Border).
-		SetTitleColor(dialogColors.Title)
-	tv.SetTextColor(dialogColors.Foreground)
+	textView.SetBackgroundColor(bg)
+	textView.SetTextColor(dialogColors.Foreground)
 
-	tv.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	closeBtn := tview.NewButton("Close").
+		SetSelectedFunc(func() { ta.closeModal() })
+	closeBtn.SetBackgroundColor(dialogColors.ButtonBg)
+	closeBtn.SetLabelColor(dialogColors.ButtonFg)
+
+	textView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEscape {
 			ta.closeModal()
+			return nil
+		}
+		if event.Key() == tcell.KeyTab {
+			ta.app.SetFocus(closeBtn)
+			return nil
+		}
+		return event
+	})
+	closeBtn.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEscape {
+			ta.closeModal()
+			return nil
+		}
+		if event.Key() == tcell.KeyTab {
+			ta.app.SetFocus(textView)
 			return nil
 		}
 		return event
 	})
 
-	width := 30
+	btnRow := tview.NewFlex().
+		AddItem(tview.NewBox().SetBackgroundColor(bg), 0, 1, false).
+		AddItem(closeBtn, 9, 0, false).
+		AddItem(tview.NewBox().SetBackgroundColor(bg), 0, 1, false)
+
+	inner := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(textView, 0, 1, true).
+		AddItem(tview.NewBox().SetBackgroundColor(bg), 1, 0, false).
+		AddItem(btnRow, 1, 0, false).
+		AddItem(tview.NewBox().SetBackgroundColor(bg), 1, 0, false)
+	inner.SetBorder(true).
+		SetTitle(" " + title + " ").
+		SetTitleAlign(tview.AlignCenter).
+		SetBackgroundColor(bg).
+		SetBorderColor(dialogColors.Border).
+		SetTitleColor(dialogColors.Title)
+
 	flex := tview.NewFlex().
 		AddItem(nil, 0, 1, false).
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(nil, 0, 1, false).
-			AddItem(tv, height, 0, true).
+			AddItem(inner, height, 0, true).
 			AddItem(nil, 0, 1, false), width, 0, true).
 		AddItem(nil, 0, 1, false)
 
 	ta.pages.AddPage("scrollable-modal", flex, true, true)
-	ta.app.SetFocus(tv)
+	ta.app.SetFocus(textView)
 	ta.modalVisible = true
 	ta.inputHandler.SetModalVisible(true)
 }

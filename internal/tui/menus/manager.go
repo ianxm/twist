@@ -25,7 +25,7 @@ type AppInterface interface {
 	ShowModal(title, text string, buttons []string, callback func(int, string))
 	ShowInputDialog(pageName string, dialog interface{})
 	ShowBurstDialog(onSend func(string), onCancel func())
-	ShowScrollableModal(title, text string, height int)
+	ShowScrollableModal(title, text string, width, height int)
 	CloseModal()
 
 	// Terminal info for dynamic sizing
