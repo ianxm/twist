@@ -435,6 +435,15 @@ func (ta *TwistApp) SetVersionInfo(version, commit, date string) {
 
 // Run starts the TUI application
 func (ta *TwistApp) Run() error {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("PANIC recovered in TUI Run", "error", r, "stack", string(debug.Stack()))
+			// Try to clean up terminal state
+			if ta.app != nil {
+				ta.app.Stop()
+			}
+		}
+	}()
 	return ta.app.Run()
 }
 
@@ -674,7 +683,6 @@ func (ta *TwistApp) HandleCurrentSectorChanged(sectorInfo coreapi.SectorInfo) {
 
 // HandlePortUpdated processes port information update events
 func (ta *TwistApp) HandlePortUpdated(portInfo coreapi.PortInfo) {
-
 	ta.app.QueueUpdateDraw(func() {
 		// Port updates don't affect map visualization (which only cares about warps)
 		// Skip calling UpdateSectorData to avoid triggering unnecessary map redraws

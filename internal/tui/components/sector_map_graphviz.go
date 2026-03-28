@@ -13,8 +13,10 @@ import (
 	"image/png"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"twist/internal/api"
 	"twist/internal/log"
@@ -107,6 +109,7 @@ type GraphvizSectorMap struct {
 	graphCache     *LRUCache // LRU cache keyed by MD5 hash of DOT content
 	currentHashKey string    // Current hash key being displayed
 
+	mu           sync.Mutex // Protects all mutable state
 	needsRedraw  bool
 	hasBorder    bool
 	sixelLayer   *SixelLayer
@@ -151,15 +154,19 @@ func NewGraphvizSectorMap(sixelLayer *SixelLayer, app *tview.Application) *Graph
 
 // SetProxyAPI sets the API reference for accessing game data
 func (gsm *GraphvizSectorMap) SetProxyAPI(proxyAPI api.ProxyAPI) {
+	gsm.mu.Lock()
+	defer gsm.mu.Unlock()
 	gsm.proxyAPI = proxyAPI
 	gsm.needsRedraw = true
-	// LRU cache will handle eviction automatically
 }
 
 // Draw renders the graphviz sector map using the proven sixel technique
 func (gsm *GraphvizSectorMap) Draw(screen tcell.Screen) {
+	gsm.mu.Lock()
+
 	// Don't draw if ProxyAPI is nil (disconnected state)
 	if gsm.proxyAPI == nil {
+		gsm.mu.Unlock()
 		return
 	}
 
@@ -167,6 +174,7 @@ func (gsm *GraphvizSectorMap) Draw(screen tcell.Screen) {
 	x, y, width, height := gsm.GetRect()
 
 	if width <= 0 || height <= 0 {
+		gsm.mu.Unlock()
 		return
 	}
 
@@ -184,33 +192,69 @@ func (gsm *GraphvizSectorMap) Draw(screen tcell.Screen) {
 				gsm.sixelLayer.SetRegionVisible(gsm.regionID, false)
 			}
 
+			// Snapshot state needed by the goroutine
+			proxyAPI := gsm.proxyAPI
+			currentSector := gsm.currentSector
+			app := gsm.app
+
+			gsm.mu.Unlock()
+
 			// Move expensive generation to background goroutine
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Error("PANIC recovered in GraphvizSectorMap async generation", "error", r, "stack", string(debug.Stack()))
+						app.QueueUpdateDraw(func() {
+							gsm.mu.Lock()
+							gsm.isGenerating = false
+							gsm.mu.Unlock()
+						})
+					}
+				}()
+
 				// Generate new graphviz image
-				g, err := gsm.buildSectorGraph()
+				g, snap, err := gsm.buildSectorGraphSnapshot(proxyAPI, currentSector)
 				if err == nil {
-					_, err := gsm.generateGraphvizImage(g, width, height)
+					// Merge snapshot data back under lock
+					app.QueueUpdateDraw(func() {
+						gsm.mu.Lock()
+						for k, v := range snap.sectorData {
+							gsm.sectorData[k] = v
+						}
+						gsm.sectorLevels = snap.sectorLevels
+						gsm.mu.Unlock()
+					})
+
+					_, err := gsm.generateGraphvizImageFromSnapshot(g, width, height, snap)
 					if err == nil {
 						// Update UI on main thread
-						gsm.app.QueueUpdateDraw(func() {
-							// Image data is now cached in LRU cache, cachedImage/cachedSixel set by generateGraphvizImage
+						app.QueueUpdateDraw(func() {
+							gsm.mu.Lock()
 							gsm.needsRedraw = false
 							gsm.pendingRedraw = false
-							gsm.isGenerating = false // Mark generation complete
+							gsm.isGenerating = false
+							gsm.mu.Unlock()
 						})
 					} else {
 						log.Info("GraphvizSectorMap.AsyncGen: Error generating image", "error", err)
-						gsm.app.QueueUpdateDraw(func() {
+						app.QueueUpdateDraw(func() {
+							gsm.mu.Lock()
 							gsm.isGenerating = false
+							gsm.mu.Unlock()
 						})
 					}
 				} else {
 					log.Info("GraphvizSectorMap.AsyncGen: Error building graph", "error", err)
-					gsm.app.QueueUpdateDraw(func() {
+					app.QueueUpdateDraw(func() {
+						gsm.mu.Lock()
 						gsm.isGenerating = false
+						gsm.mu.Unlock()
 					})
 				}
 			}()
+
+			// Lock was released above before spawning goroutine; re-acquire for the rest of Draw
+			gsm.mu.Lock()
 		} else {
 			log.Info("GraphvizSectorMap.Draw: Cannot generate", "currentSector", gsm.currentSector, "has_proxyAPI", gsm.proxyAPI != nil, "has_app", gsm.app != nil)
 		}
@@ -218,6 +262,7 @@ func (gsm *GraphvizSectorMap) Draw(screen tcell.Screen) {
 
 	// Register sixel region with the layer if we have cached image
 	if gsm.currentHashKey != "" && gsm.sixelLayer != nil {
+		gsm.mu.Unlock()
 		gsm.registerSixelRegion(x, y, width, height)
 	} else {
 
@@ -225,6 +270,7 @@ func (gsm *GraphvizSectorMap) Draw(screen tcell.Screen) {
 		if gsm.sixelLayer != nil {
 			gsm.sixelLayer.SetRegionVisible(gsm.regionID, false)
 		}
+		gsm.mu.Unlock()
 	}
 
 	// debug.Info("GraphvizSectorMap.Draw: Draw complete")
@@ -232,15 +278,19 @@ func (gsm *GraphvizSectorMap) Draw(screen tcell.Screen) {
 
 // registerSixelRegion registers this component's sixel region with the layer
 func (gsm *GraphvizSectorMap) registerSixelRegion(x, y, width, height int) {
+	gsm.mu.Lock()
 	// Get cached data from LRU cache
 	cached, found := gsm.graphCache.Get(gsm.currentHashKey)
 	if !found {
 		log.Info("GraphvizSectorMap.registerSixelRegion: No cached data found", "hash", gsm.currentHashKey)
+		gsm.mu.Unlock()
 		return
 	}
 
 	// Generate sixel data if not already generated for this cached item
 	if cached.SixelData == "" {
+		gsm.mu.Unlock()
+
 		// Decode the cached PNG image
 		img, err := png.Decode(bytes.NewReader(cached.ImageData))
 		if err != nil {
@@ -262,8 +312,12 @@ func (gsm *GraphvizSectorMap) registerSixelRegion(x, y, width, height int) {
 		}
 
 		// Update the cached data with sixel
+		gsm.mu.Lock()
 		cached.SixelData = buf.String()
-		gsm.graphCache.Put(gsm.currentHashKey, cached) // Update cache with sixel data
+		gsm.graphCache.Put(gsm.currentHashKey, cached)
+		gsm.mu.Unlock()
+	} else {
+		gsm.mu.Unlock()
 	}
 
 	// Register with the sixel layer
@@ -346,6 +400,8 @@ func (gsm *GraphvizSectorMap) drawStatusText(screen tcell.Screen, x, y, width, h
 
 // UpdateCurrentSector updates the map with the current sector
 func (gsm *GraphvizSectorMap) UpdateCurrentSector(sectorNumber int) {
+	gsm.mu.Lock()
+	defer gsm.mu.Unlock()
 	if gsm.currentSector != sectorNumber {
 		gsm.currentSector = sectorNumber
 		gsm.needsRedraw = true
@@ -361,6 +417,8 @@ func (gsm *GraphvizSectorMap) UpdateCurrentSector(sectorNumber int) {
 
 // UpdateCurrentSectorWithInfo updates the map with full sector information
 func (gsm *GraphvizSectorMap) UpdateCurrentSectorWithInfo(sectorInfo api.SectorInfo) {
+	gsm.mu.Lock()
+	defer gsm.mu.Unlock()
 	oldSector := gsm.currentSector
 
 	// Always update the sector data first
@@ -387,6 +445,8 @@ func (gsm *GraphvizSectorMap) UpdateCurrentSectorWithInfo(sectorInfo api.SectorI
 
 // UpdateSectorData updates sector data without changing the current sector focus
 func (gsm *GraphvizSectorMap) UpdateSectorData(sectorInfo api.SectorInfo) {
+	gsm.mu.Lock()
+	defer gsm.mu.Unlock()
 	// Update the sector data in our cache
 	gsm.sectorData[sectorInfo.Number] = sectorInfo
 
@@ -402,6 +462,7 @@ func (gsm *GraphvizSectorMap) UpdateSectorData(sectorInfo api.SectorInfo) {
 }
 
 // scheduleRedrawWithDebounce schedules a redraw with debouncing to prevent rapid-fire updates
+// NOTE: Must be called with gsm.mu held.
 func (gsm *GraphvizSectorMap) scheduleRedrawWithDebounce(sectorNumber int, source string) {
 	now := time.Now()
 	gsm.lastUpdateTime = now
@@ -440,6 +501,8 @@ func (gsm *GraphvizSectorMap) scheduleRedrawWithDebounce(sectorNumber int, sourc
 
 	// Set up new timer
 	gsm.debounceTimer = time.AfterFunc(gsm.debounceDelay, func() {
+		gsm.mu.Lock()
+		defer gsm.mu.Unlock()
 		if gsm.pendingRedraw {
 			gsm.needsRedraw = true
 			gsm.pendingRedraw = false
@@ -456,6 +519,8 @@ func (gsm *GraphvizSectorMap) isSectorInDisplayRange(sectorNumber int) bool {
 
 // LoadRealMapData loads real sector data from the API
 func (gsm *GraphvizSectorMap) LoadRealMapData() {
+	gsm.mu.Lock()
+	defer gsm.mu.Unlock()
 	if gsm.proxyAPI == nil {
 		return
 	}
@@ -479,7 +544,163 @@ func (gsm *GraphvizSectorMap) LoadRealMapData() {
 
 // Note: refreshMap and renderSixelMap methods removed - now handled in Draw() method
 
+// graphSnapshot holds a snapshot of shared state for use by background goroutines
+type graphSnapshot struct {
+	proxyAPI      api.ProxyAPI
+	currentSector int
+	sectorData    map[int]api.SectorInfo
+	sectorLevels  map[int]int
+}
+
+// buildSectorGraphSnapshot creates a graph structure using a snapshot of state (safe for goroutines).
+// It returns the graph plus updated sectorData/sectorLevels maps to merge back.
+func (gsm *GraphvizSectorMap) buildSectorGraphSnapshot(proxyAPI api.ProxyAPI, currentSector int) (graph.Graph[int, int], *graphSnapshot, error) {
+	// Work on local maps — no access to gsm.sectorData or gsm.sectorLevels
+	sectorData := make(map[int]api.SectorInfo)
+	sectorLevels := make(map[int]int)
+
+	g := graph.New(func(i int) int { return i }, graph.Directed())
+
+	currentInfo, err := proxyAPI.GetSectorInfo(currentSector)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get current sector info: %w", err)
+	}
+	sectorData[currentSector] = currentInfo
+
+	err = g.AddVertex(currentSector)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to add current sector vertex: %w", err)
+	}
+
+	processed := make(map[int]bool)
+	sectorLevels[currentSector] = 0
+
+	for _, warpSector := range currentInfo.Warps {
+		if warpSector <= 0 {
+			continue
+		}
+		g.AddVertex(warpSector)
+		g.AddEdge(currentSector, warpSector)
+		sectorLevels[warpSector] = 1
+	}
+	processed[currentSector] = true
+
+	secondLevelSectors := make([]int, 0)
+	for _, warpSector := range currentInfo.Warps {
+		if warpSector <= 0 || processed[warpSector] {
+			continue
+		}
+		warpInfo, err := proxyAPI.GetSectorInfo(warpSector)
+		if err != nil {
+			continue
+		}
+		sectorData[warpSector] = warpInfo
+		processed[warpSector] = true
+		for _, targetSector := range warpInfo.Warps {
+			if targetSector <= 0 {
+				continue
+			}
+			g.AddVertex(targetSector)
+			g.AddEdge(warpSector, targetSector)
+			if !processed[targetSector] {
+				secondLevelSectors = append(secondLevelSectors, targetSector)
+				if _, exists := sectorLevels[targetSector]; !exists {
+					sectorLevels[targetSector] = 2
+				}
+			}
+		}
+	}
+
+	thirdLevelSectors := make([]int, 0)
+	for _, secondLevelSector := range secondLevelSectors {
+		if secondLevelSector <= 0 || processed[secondLevelSector] {
+			continue
+		}
+		secondLevelInfo, err := proxyAPI.GetSectorInfo(secondLevelSector)
+		if err != nil {
+			continue
+		}
+		sectorData[secondLevelSector] = secondLevelInfo
+		processed[secondLevelSector] = true
+		for _, thirdLevelSector := range secondLevelInfo.Warps {
+			if thirdLevelSector <= 0 {
+				continue
+			}
+			g.AddVertex(thirdLevelSector)
+			g.AddEdge(secondLevelSector, thirdLevelSector)
+			if !processed[thirdLevelSector] {
+				thirdLevelSectors = append(thirdLevelSectors, thirdLevelSector)
+				if _, exists := sectorLevels[thirdLevelSector]; !exists {
+					sectorLevels[thirdLevelSector] = 3
+				}
+			}
+		}
+	}
+
+	fourthLevelSectors := make([]int, 0)
+	for _, thirdLevelSector := range thirdLevelSectors {
+		if thirdLevelSector <= 0 || processed[thirdLevelSector] {
+			continue
+		}
+		thirdLevelInfo, err := proxyAPI.GetSectorInfo(thirdLevelSector)
+		if err != nil {
+			continue
+		}
+		sectorData[thirdLevelSector] = thirdLevelInfo
+		processed[thirdLevelSector] = true
+		for _, fourthLevelSector := range thirdLevelInfo.Warps {
+			if fourthLevelSector <= 0 {
+				continue
+			}
+			g.AddVertex(fourthLevelSector)
+			g.AddEdge(thirdLevelSector, fourthLevelSector)
+			if !processed[fourthLevelSector] {
+				fourthLevelSectors = append(fourthLevelSectors, fourthLevelSector)
+				if _, exists := sectorLevels[fourthLevelSector]; !exists {
+					sectorLevels[fourthLevelSector] = 4
+				}
+			}
+		}
+	}
+
+	for _, fourthLevelSector := range fourthLevelSectors {
+		if fourthLevelSector <= 0 || processed[fourthLevelSector] {
+			continue
+		}
+		fourthLevelInfo, err := proxyAPI.GetSectorInfo(fourthLevelSector)
+		if err != nil {
+			continue
+		}
+		sectorData[fourthLevelSector] = fourthLevelInfo
+		processed[fourthLevelSector] = true
+		for _, fifthLevelSector := range fourthLevelInfo.Warps {
+			if fifthLevelSector <= 0 {
+				continue
+			}
+			g.AddVertex(fifthLevelSector)
+			g.AddEdge(fourthLevelSector, fifthLevelSector)
+			if !processed[fifthLevelSector] {
+				if _, exists := sectorData[fifthLevelSector]; !exists {
+					sectorData[fifthLevelSector] = api.SectorInfo{Number: fifthLevelSector}
+				}
+				if _, exists := sectorLevels[fifthLevelSector]; !exists {
+					sectorLevels[fifthLevelSector] = 5
+				}
+			}
+		}
+	}
+
+	snap := &graphSnapshot{
+		proxyAPI:      proxyAPI,
+		currentSector: currentSector,
+		sectorData:    sectorData,
+		sectorLevels:  sectorLevels,
+	}
+	return g, snap, nil
+}
+
 // buildSectorGraph creates a graph structure using dominikbraun/graph
+// NOTE: Must be called with gsm.mu held.
 func (gsm *GraphvizSectorMap) buildSectorGraph() (graph.Graph[int, int], error) {
 	// Create a new directed graph with proper hash function
 	g := graph.New(func(i int) int { return i }, graph.Directed())
@@ -658,7 +879,19 @@ func (gsm *GraphvizSectorMap) buildSectorGraph() (graph.Graph[int, int], error) 
 }
 
 // generateGraphvizImage creates a PNG image from the graph using graphviz
+// NOTE: Must be called with gsm.mu held (used by generateDOTContentHash on main thread).
 func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], componentWidth, componentHeight int) ([]byte, error) {
+	snap := &graphSnapshot{
+		proxyAPI:      gsm.proxyAPI,
+		currentSector: gsm.currentSector,
+		sectorData:    gsm.sectorData,
+		sectorLevels:  gsm.sectorLevels,
+	}
+	return gsm.generateGraphvizImageFromSnapshot(g, componentWidth, componentHeight, snap)
+}
+
+// generateGraphvizImageFromSnapshot creates a PNG image from the graph using a snapshot (safe for goroutines)
+func (gsm *GraphvizSectorMap) generateGraphvizImageFromSnapshot(g graph.Graph[int, int], componentWidth, componentHeight int, snap *graphSnapshot) ([]byte, error) {
 	ctx := context.Background()
 	gv, err := graphviz.New(ctx)
 	if err != nil {
@@ -730,10 +963,10 @@ func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], com
 
 	for _, sector := range sectors {
 		// Create node with sector information
-		sectorInfo, exists := gsm.sectorData[sector]
+		sectorInfo, exists := snap.sectorData[sector]
 
 		var label, fillColor string
-		if sector == gsm.currentSector {
+		if sector == snap.currentSector {
 			label = fmt.Sprintf("YOU\\n%d", sector)
 			fillColor = "yellow"
 		} else if exists && sectorInfo.Visited {
@@ -742,8 +975,8 @@ func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], com
 				var portType string
 				if sectorInfo.HasPort {
 					// Get actual port type from API
-					if gsm.proxyAPI != nil {
-						if portData, err := gsm.proxyAPI.GetPortInfo(sector); err == nil && portData != nil {
+					if snap.proxyAPI != nil {
+						if portData, err := snap.proxyAPI.GetPortInfo(sector); err == nil && portData != nil {
 							portType = portData.ClassType.String() // Show actual port type like "BBS"
 						} else {
 							portType = "PORT" // Port exists but couldn't get details
@@ -759,8 +992,8 @@ func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], com
 			} else if sectorInfo.HasPort {
 				// Sector has port but no traders
 				var portType string
-				if gsm.proxyAPI != nil {
-					if portData, err := gsm.proxyAPI.GetPortInfo(sector); err == nil && portData != nil {
+				if snap.proxyAPI != nil {
+					if portData, err := snap.proxyAPI.GetPortInfo(sector); err == nil && portData != nil {
 						portType = portData.ClassType.String() // Show actual port type like "BSB"
 					} else {
 						portType = "PORT" // Port exists but couldn't get details
@@ -793,7 +1026,7 @@ func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], com
 		node.SetFontColor("black") // Black text on colored background
 
 		// Apply dotted border style only to 5th level (outermost) sectors
-		if level, exists := gsm.sectorLevels[sector]; exists && level == 5 {
+		if level, exists := snap.sectorLevels[sector]; exists && level == 5 {
 			node.SetStyle("filled,rounded,dotted")
 		} else {
 			node.SetStyle("filled,rounded")
@@ -877,7 +1110,7 @@ func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], com
 
 	// List all sectors and their warps
 	warpDebug.WriteString("Raw sector warp data:\n")
-	for sector, info := range gsm.sectorData {
+	for sector, info := range snap.sectorData {
 		warpDebug.WriteString(fmt.Sprintf("Sector %d warps to: %v\n", sector, info.Warps))
 	}
 
@@ -924,12 +1157,14 @@ func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], com
 	hashKey := fmt.Sprintf("%x", hash)
 
 	// Check if we have cached data for this hash
+	gsm.mu.Lock()
 	if cached, found := gsm.graphCache.Get(hashKey); found {
 		gsm.currentHashKey = hashKey
+		gsm.mu.Unlock()
 		return cached.ImageData, nil
 	}
-
 	gsm.currentHashKey = hashKey
+	gsm.mu.Unlock()
 
 	// Save DOT file for debugging
 	dotFileName := "/tmp/sector_map.dot"
@@ -1140,7 +1375,9 @@ func (gsm *GraphvizSectorMap) generateGraphvizImage(g graph.Graph[int, int], com
 		Width:     panelPixelWidth,
 		Height:    panelPixelHeight,
 	}
+	gsm.mu.Lock()
 	gsm.graphCache.Put(hashKey, cachedData)
+	gsm.mu.Unlock()
 
 	return finalImageData, nil
 }
@@ -1238,6 +1475,7 @@ func drawContentBorders(panelImg *image.RGBA, contentBounds image.Rectangle, off
 }
 
 // generateDOTContentHash creates a DOT content hash without generating the full image
+// NOTE: Must be called with gsm.mu held.
 func (gsm *GraphvizSectorMap) generateDOTContentHash() (string, error) {
 	if gsm.currentSector <= 0 || gsm.proxyAPI == nil {
 		return "", fmt.Errorf("no current sector or proxy API")

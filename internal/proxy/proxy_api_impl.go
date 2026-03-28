@@ -2,10 +2,23 @@ package proxy
 
 import (
 	"errors"
+	"runtime/debug"
 	"time"
 	"twist/internal/api"
 	"twist/internal/log"
 )
+
+// safeGo runs a function in a goroutine with panic recovery
+func safeGo(name string, fn func()) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("PANIC recovered in goroutine", "name", name, "error", r, "stack", string(debug.Stack()))
+			}
+		}()
+		fn()
+	}()
+}
 
 // ProxyApiImpl implements ProxyAPI as a thin orchestration layer
 type ProxyApiImpl struct {
@@ -33,7 +46,7 @@ func NewProxyApiImpl(proxy *Proxy, tuiAPI api.TuiAPI) *ProxyApiImpl {
 
 // StartMonitoring starts connection monitoring (for factory package)
 func (p *ProxyApiImpl) StartMonitoring() {
-	go p.monitorConnection()
+	safeGo("monitorConnection", p.monitorConnection)
 }
 
 // Thin orchestration methods - all one-liners delegating to proxy

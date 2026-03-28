@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -422,6 +423,15 @@ func (p *Proxy) GetErrorChan() <-chan error {
 // GetTerminal method removed - TUI now owns the terminal buffer
 
 func (p *Proxy) handleInput() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("PANIC recovered in handleInput", "error", r, "stack", string(debug.Stack()))
+			// Set disconnected state and send error
+			p.setState(NewDisconnectedState())
+			p.errorChan <- fmt.Errorf("panic in input handler: %v", r)
+		}
+	}()
+
 	for input := range p.inputChan {
 		state := p.getState()
 		connected := state.IsConnected()
@@ -469,6 +479,15 @@ func (p *Proxy) handleInput() {
 }
 
 func (p *Proxy) handleOutput() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("PANIC recovered in handleOutput", "error", r, "stack", string(debug.Stack()))
+			// Set disconnected state and send error
+			p.setState(NewDisconnectedState())
+			p.errorChan <- fmt.Errorf("panic in output handler: %v", r)
+		}
+	}()
+
 	// Use a buffer for continuous reading
 	buffer := make([]byte, 4096)
 
