@@ -43,9 +43,8 @@ func newTestGameDetector(t *testing.T) (*GameDetector, func()) {
 
 // TestGameDetector_BasicFlow tests the complete game detection flow
 func TestGameDetector_BasicFlow(t *testing.T) {
-	connInfo := ConnectionInfo{Host: "localhost", Port: t.Name()}
-	gd := NewGameDetector(connInfo)
-	defer gd.Close()
+	gd, cleanup := newTestGameDetector(t)
+	defer cleanup()
 
 	// Initial state should be idle
 	if gd.GetState() != StateIdle {
@@ -90,9 +89,8 @@ func TestGameDetector_BasicFlow(t *testing.T) {
 
 // TestGameDetector_ChunkSplitting tests streaming across chunk boundaries
 func TestGameDetector_ChunkSplitting(t *testing.T) {
-	connInfo := ConnectionInfo{Host: "localhost", Port: t.Name()}
-	gd := NewGameDetector(connInfo)
-	defer gd.Close()
+	gd, cleanup := newTestGameDetector(t)
+	defer cleanup()
 
 	testCases := []struct {
 		name          string
@@ -172,9 +170,8 @@ func TestGameDetector_ANSISequences(t *testing.T) {
 
 // TestGameDetector_ProcessChunk tests raw byte processing
 func TestGameDetector_ProcessChunk(t *testing.T) {
-	connInfo := ConnectionInfo{Host: "localhost", Port: t.Name()}
-	gd := NewGameDetector(connInfo)
-	defer gd.Close()
+	gd, cleanup := newTestGameDetector(t)
+	defer cleanup()
 
 	// Test processing raw bytes
 	chunk1 := []byte("Select a ga")
@@ -200,9 +197,8 @@ func TestGameDetector_ProcessChunk(t *testing.T) {
 
 // TestGameDetector_StateProtection tests state-based pattern filtering
 func TestGameDetector_StateProtection(t *testing.T) {
-	connInfo := ConnectionInfo{Host: "localhost", Port: t.Name()}
-	gd := NewGameDetector(connInfo)
-	defer gd.Close()
+	gd, cleanup := newTestGameDetector(t)
+	defer cleanup()
 
 	// Complete game flow to active state
 	gd.ProcessLine("Select a game :")
@@ -249,7 +245,7 @@ func TestGameDetector_MainMenuReturn(t *testing.T) {
 		t.Fatalf("Expected StateGameActive, got %v", gd.GetState())
 	}
 
-	// Main menu patterns should reset state
+	// Main menu patterns should transition to menu state after exiting a game
 	testCases := []string{
 		"TWGS v1.0",
 		"TradeWars Game Server",
@@ -264,11 +260,12 @@ func TestGameDetector_MainMenuReturn(t *testing.T) {
 			gd.ProcessLine("A")
 			gd.ProcessLine("Show today's log? (Y/N)")
 
-			// Process main menu pattern
+			// Exit the game first, then see main menu
+			gd.ProcessLine("...Now leaving Trade Wars")
 			gd.ProcessLine(pattern)
 
-			if gd.GetState() != StateIdle {
-				t.Errorf("Expected StateIdle after main menu pattern %q, got %v", pattern, gd.GetState())
+			if gd.GetState() != StateGameMenuVisible {
+				t.Errorf("Expected StateGameMenuVisible after exit + main menu pattern %q, got %v", pattern, gd.GetState())
 			}
 		})
 	}
@@ -338,9 +335,8 @@ func TestGameDetector_DatabaseLoading(t *testing.T) {
 
 // TestGameDetector_ConcurrentAccess tests thread safety
 func TestGameDetector_ConcurrentAccess(t *testing.T) {
-	connInfo := ConnectionInfo{Host: "localhost", Port: t.Name()}
-	gd := NewGameDetector(connInfo)
-	defer gd.Close()
+	gd, cleanup := newTestGameDetector(t)
+	defer cleanup()
 
 	// Run concurrent operations
 	done := make(chan bool, 3)
@@ -440,9 +436,8 @@ func TestGameDetector_EdgeCases(t *testing.T) {
 
 // TestGameDetector_RealWorldScenarios tests realistic game connection scenarios
 func TestGameDetector_RealWorldScenarios(t *testing.T) {
-	connInfo := ConnectionInfo{Host: "example.com", Port: "2323"}
-	gd := NewGameDetector(connInfo)
-	defer gd.Close()
+	gd, cleanup := newTestGameDetector(t)
+	defer cleanup()
 
 	t.Run("CompleteSessionWithNoise", func(t *testing.T) {
 		// Simulate real session with server headers, ANSI, etc.
