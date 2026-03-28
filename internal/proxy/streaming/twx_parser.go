@@ -1278,6 +1278,14 @@ func (p *TWXParser) processSectorLine(line string) {
 		p.handleSectorFighters(line)
 		return
 	}
+	if strings.HasPrefix(line, "NavHaz  : ") {
+		p.handleSectorNavHaz(line)
+		return
+	}
+	if strings.HasPrefix(line, "Beacon  : ") {
+		p.handleSectorBeacon(line)
+		return
+	}
 	if strings.HasPrefix(line, "Warps to Sector(s) : ") {
 		p.handleSectorWarps(line)
 		return
@@ -1315,6 +1323,14 @@ func (p *TWXParser) processCIMLine(line string) {
 	// Pascal: if (Length(Line) > 2) then
 	if len(line) <= 2 {
 		p.currentDisplay = DisplayNone
+		return
+	}
+
+	// CIM lines always start with a digit (sector number).
+	// Non-numeric lines (e.g. "Docking...") mean CIM mode has ended.
+	if line[0] < '0' || line[0] > '9' {
+		p.currentDisplay = DisplayNone
+		p.checkPatterns(line)
 		return
 	}
 

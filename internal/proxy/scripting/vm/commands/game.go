@@ -537,7 +537,6 @@ func setDefaultSectorValues(vm types.VMInterface, varName string) {
 	vm.SetVariable(varName+".BEACON", &types.Value{Type: types.StringType, String: ""})
 	vm.SetVariable(varName+".CONSTELLATION", &types.Value{Type: types.StringType, String: ""})
 	vm.SetVariable(varName+".WARPCOUNT", &types.Value{Type: types.NumberType, Number: 0})
-	vm.SetVariable(varName+".WARPS", &types.Value{Type: types.NumberType, Number: 0})
 	vm.SetVariable(varName+".DENSITY", &types.Value{Type: types.NumberType, Number: -1})
 	vm.SetVariable(varName+".NAVHAZ", &types.Value{Type: types.NumberType, Number: 0})
 	vm.SetVariable(varName+".ANOMALY", &types.Value{Type: types.StringType, String: "NO"})
