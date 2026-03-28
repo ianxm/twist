@@ -429,9 +429,9 @@ func TestGetSectorCommand_RealIntegration(t *testing.T) {
 		echo "Explored: " $s.explored
 		echo "Port class: " $s.port.class
 		echo "Port exists: " $s.port.exists
-		echo "Warps: " $s.warps
-		echo "Warp[1]: " $s.warp[1]
-		echo "Warp[2]: " $s.warp[2]
+		echo "Warps: " $s.warpcount
+		echo "Warp[1]: " $s.warps[1]
+		echo "Warp[2]: " $s.warps[2]
 		echo "Beacon: " $s.beacon
 	`
 

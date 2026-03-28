@@ -205,6 +205,8 @@ func TestVersionDetection(t *testing.T) {
 
 	t.Run("Server Type Switching", func(t *testing.T) {
 		// Test switching between different server types
+		// Reset display state left over from previous sub-test
+		parser.currentDisplay = DisplayNone
 
 		// Start with TWGS
 		parser.ProcessString("TradeWars Game Server v2.20b\r")

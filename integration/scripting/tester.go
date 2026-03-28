@@ -376,7 +376,8 @@ func (tester *IntegrationScriptTester) IsWaiting() bool {
 // SimulateNetworkInput simulates incoming network text for trigger processing
 func (tester *IntegrationScriptTester) SimulateNetworkInput(text string) error {
 	// Process the text through the VM's trigger system
-	return tester.setupData.VM.ProcessIncomingText(text)
+	_, err := tester.setupData.VM.ProcessIncomingText(text, true)
+	return err
 }
 
 // parseScriptWithPreprocessor parses script source code using the same pipeline as the engine

@@ -2,11 +2,15 @@ package scripting
 
 import (
 	"testing"
+	"twist/internal/proxy/database"
 )
 
 // TestSystemConstants tests CURRENTLINE and other system constants
 func TestSystemConstants_RealIntegration(t *testing.T) {
 	tester := NewIntegrationScriptTester(t)
+
+	// CURRENTSECTOR is dynamic and reads from DB, so we need player stats
+	tester.setupData.DB.SavePlayerStats(database.TPlayerStats{CurrentSector: 1})
 
 	script := `
 		echo "Testing system constants"

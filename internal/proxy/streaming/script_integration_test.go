@@ -228,10 +228,7 @@ func TestTWXParser_ScriptIntegration(t *testing.T) {
 	parser.ProcessString(testLine + "\r")
 
 	// Verify script events were fired
-	if len(mockEngine.textEvents) == 0 {
-		t.Error("Expected text events to be fired during line processing")
-	}
-
+	// Prompt lines fire TextLineEvent (not TextEvent) since 5a066fe
 	if len(mockEngine.textLineEvents) == 0 {
 		t.Error("Expected text line events to be fired during line processing")
 	}
@@ -324,10 +321,7 @@ func TestTWXParser_PascalIntegrationBehavior(t *testing.T) {
 	}
 
 	// Verify script events were fired for each line
-	if len(mockEngine.textEvents) != len(testLines) {
-		t.Errorf("Expected %d text events, got %d", len(testLines), len(mockEngine.textEvents))
-	}
-
+	// Complete lines fire TextLineEvent; TextEvent is only for partial/prompt lines
 	if len(mockEngine.textLineEvents) != len(testLines) {
 		t.Errorf("Expected %d text line events, got %d", len(testLines), len(mockEngine.textLineEvents))
 	}

@@ -40,15 +40,15 @@ func TestGetSectorDotNotation_RealIntegration(t *testing.T) {
 		echo "  Explored: " $sector.explored
 		echo "  Beacon: " $sector.beacon
 		echo "  Constellation: " $sector.constellation
-		echo "  Warps: " $sector.warps
+		echo "  Warps: " $sector.warpcount
 		echo "Port properties:"
 		echo "  Exists: " $sector.port.exists
 		echo "  Class: " $sector.port.class
 		echo "  Name: " $sector.port.name
 		echo "Warp array access:"
-		echo "  Warp[1]: " $sector.warp[1]
-		echo "  Warp[2]: " $sector.warp[2]
-		echo "  Warp[3]: " $sector.warp[3]
+		echo "  Warp[1]: " $sector.warps[1]
+		echo "  Warp[2]: " $sector.warps[2]
+		echo "  Warp[3]: " $sector.warps[3]
 	`
 
 	result := tester.ExecuteScript(script)
