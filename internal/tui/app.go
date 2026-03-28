@@ -365,8 +365,9 @@ func (ta *TwistApp) animatePanels(show bool) {
 				ta.panelComponent.RestoreMapComponent()
 				ta.panelComponent.LoadRealData()
 			})
-		} else {
-			log.Info("Panel visibility", "show", show, "panel_component_exists", ta.panelComponent != nil, "connected", ta.proxyClient.IsConnected())
+		} else if !show && ta.sixelLayer != nil {
+			// Clear sixel regions when panels are hidden
+			ta.sixelLayer.ClearAllRegions()
 		}
 	}()
 }
