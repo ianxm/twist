@@ -75,9 +75,10 @@ type Engine struct {
 	ansiStripper *ansi.StreamingStripper
 
 	// Event handlers
-	outputHandler func(string) error
-	echoHandler   func(string) error
-	sendHandler   func(string) error
+	outputHandler       func(string) error
+	echoHandler         func(string) error
+	sendHandler         func(string) error
+	statusChangeHandler func()
 }
 
 // NewEngine creates a new scripting engine
@@ -142,6 +143,11 @@ func (e *Engine) SetSendHandler(handler func(string) error) {
 			script.VM.SetSendHandler(handler)
 		}
 	}
+}
+
+// SetStatusChangeHandler sets the handler called when script running state changes
+func (e *Engine) SetStatusChangeHandler(handler func()) {
+	e.statusChangeHandler = handler
 }
 
 // LoadScript loads a script from a file
@@ -270,6 +276,11 @@ func (e *Engine) RunScript(scriptID string) error {
 		return newScripts
 	})
 
+	// Notify that a script started
+	if e.statusChangeHandler != nil {
+		e.statusChangeHandler()
+	}
+
 	// Execute script once - TWX style single execution
 	// Script will pause on waitfor commands and resume when text matches
 	err := script.VM.Execute()
@@ -285,6 +296,9 @@ func (e *Engine) RunScript(scriptID string) error {
 			}
 			return newScripts
 		})
+		if e.statusChangeHandler != nil {
+			e.statusChangeHandler()
+		}
 		if e.outputHandler != nil {
 			e.outputHandler(fmt.Sprintf("Script error in %s: %v", script.Name, err))
 		}
@@ -304,6 +318,9 @@ func (e *Engine) RunScript(scriptID string) error {
 			}
 			return newScripts
 		})
+		if e.statusChangeHandler != nil {
+			e.statusChangeHandler()
+		}
 	}
 
 	return nil
@@ -551,16 +568,14 @@ func (e *Engine) ProcessText(text string) error {
 
 	// Forward stripped text to all running script VMs for waitfor processing (lockless!)
 	scripts := e.getScripts()
-	scriptCount := 0
 	for _, script := range scripts {
 		if script.Running && script.VM != nil {
-			scriptCount++
 			if _, err := script.VM.ProcessIncomingText(strippedText, false); err != nil {
-			} else {
 			}
 		}
 	}
 
+	e.reapHaltedScripts()
 	return nil
 }
 
@@ -574,19 +589,51 @@ func (e *Engine) ProcessTextLine(line string) (bool, error) {
 
 	// Forward stripped text to all running script VMs for waitfor processing (lockless!)
 	scripts := e.getScripts()
-	scriptCount := 0
 	triggered := false
 	for _, script := range scripts {
 		if script.Running && script.VM != nil {
-			scriptCount++
 			var err error
 			if triggered, err = script.VM.ProcessIncomingText(strippedText, true); err != nil {
-			} else {
 			}
 		}
 	}
 
+	e.reapHaltedScripts()
 	return triggered, nil
+}
+
+// reapHaltedScripts checks for scripts whose VMs have halted (e.g. after waitfor
+// resume ran to completion) and marks them as no longer running.
+func (e *Engine) reapHaltedScripts() {
+	scripts := e.getScripts()
+	var halted []string
+	for _, script := range scripts {
+		if script.Running && script.VM != nil && script.VM.GetState().IsHalted() {
+			halted = append(halted, script.ID)
+		}
+	}
+	if len(halted) == 0 {
+		return
+	}
+	log.Debug("reapHaltedScripts: marking scripts as stopped", "count", len(halted), "ids", halted)
+	e.updateScripts(func(cur map[string]*Script) map[string]*Script {
+		next := make(map[string]*Script, len(cur))
+		for k, v := range cur {
+			next[k] = v
+		}
+		for _, id := range halted {
+			if s, ok := next[id]; ok {
+				s.Running = false
+			}
+		}
+		return next
+	})
+	for _, id := range halted {
+		e.onScriptTerminated(id)
+	}
+	if e.statusChangeHandler != nil {
+		e.statusChangeHandler()
+	}
 }
 
 // ProcessTextOut processes outgoing text through triggers

@@ -305,6 +305,13 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 	// Setup menu manager for script menu commands
 	p.scriptManager.SetupMenuManager(p.terminalMenuManager)
 
+	// Notify TUI when script running state changes (completion, error, etc.)
+	p.scriptManager.SetStatusChangeHandler(func() {
+		if p.tuiAPI != nil {
+			p.tuiAPI.OnScriptStatusChanged(p.GetScriptStatus())
+		}
+	})
+
 	// Set up game detector callbacks to update database and notify TUI when loaded
 	gameDetector.SetDatabaseLoadedCallback(p.onDatabaseLoaded)
 	gameDetector.SetDatabaseStateChangedCallback(p.onDatabaseStateChanged)

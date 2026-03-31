@@ -621,19 +621,18 @@ func (ta *TwistApp) HandleTerminalData(data []byte) {
 
 // Script event handlers
 func (ta *TwistApp) HandleScriptStatusChanged(status coreapi.ScriptStatusInfo) {
-	// Update status component to reflect new script status
-	// This is already called from within a QueueUpdateDraw context, so don't nest another one
-	if ta.statusComponent != nil {
-		ta.statusComponent.UpdateStatus()
-	}
+	ta.app.QueueUpdateDraw(func() {
+		if ta.statusComponent != nil {
+			ta.statusComponent.UpdateStatus()
+		}
 
-	// If all scripts are stopped and a modal is currently showing "Stopping...",
-	// update it to show success
-	if status.ActiveCount == 0 && ta.modalVisible {
-		// Close the "stopping" modal and show success
-		ta.closeModal()
-		ta.showMessage("All scripts have been stopped.", "Stop All Scripts")
-	}
+		// If all scripts are stopped and a modal is currently showing "Stopping...",
+		// update it to show success
+		if status.ActiveCount == 0 && ta.modalVisible {
+			ta.closeModal()
+			ta.showMessage("All scripts have been stopped.", "Stop All Scripts")
+		}
+	})
 }
 
 func (ta *TwistApp) HandleScriptError(scriptName string, err error) {

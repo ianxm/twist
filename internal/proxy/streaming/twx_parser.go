@@ -526,14 +526,13 @@ func (p *TWXParser) ProcessInBound(data string) {
 		// if this is a complete prompt send it to ProcessTextLine, else send it to ProcessText
 		match := promptPattern.MatchString(line)
 		if match {
-			log.Debug("ianxm: ProcessInBound complete prompt line", "line", line)
+			log.Debug("ProcessInBound complete prompt line", "line", line)
 			p.FireTextLineEvent(line, false)
 			p.isCurrentLinePrompt = true
 		} else {
-			log.Debug("ianxm: ProcessInBound partial line", "line", line)
+			log.Debug("ProcessInBound partial line", "line", line)
 			p.FireTextEvent(line, false)
 		}
-		log.Debug("ianxm: ProcessInBound prompt", "line", line)
 		p.processPrompt(p.currentLine)
 	}
 }
@@ -607,8 +606,9 @@ func (p *TWXParser) processLine(line string) {
 		// Pascal TWX returns early after setting mode, so we do the same
 		return
 	}
+
 	// Handle continuation based on current display state
-	log.Debug("ianxm, processLine", "line", line, "currentDisplay", p.currentDisplay)
+	log.Debug("processLine", "line", line, "currentDisplay", p.currentDisplay)
 	switch p.currentDisplay {
 	case DisplaySector:
 		p.processSectorLine(line)

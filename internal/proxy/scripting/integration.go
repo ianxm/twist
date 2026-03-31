@@ -444,6 +444,11 @@ func (sm *ScriptManager) SetupMenuManager(menuManager interface{}) {
 	sm.gameAdapter.SetMenuManager(menuManager)
 }
 
+// SetStatusChangeHandler sets a callback invoked when any script's running state changes
+func (sm *ScriptManager) SetStatusChangeHandler(handler func()) {
+	sm.engine.SetStatusChangeHandler(handler)
+}
+
 // GetEngine returns the scripting engine with proper typing
 func (sm *ScriptManager) GetEngine() interfaces.ScriptEngine {
 	return sm.engine
