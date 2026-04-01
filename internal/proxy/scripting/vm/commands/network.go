@@ -28,6 +28,7 @@ var connectionManager = struct {
 func RegisterNetworkCommands(vm CommandRegistry) {
 	vm.RegisterCommand("CONNECT", 2, 2, []types.ParameterType{types.ParamValue, types.ParamValue}, cmdConnect)
 	vm.RegisterCommand("DISCONNECT", 0, 0, []types.ParameterType{}, cmdDisconnect)
+	vm.RegisterCommand("PROXYCONNECT", 1, 2, []types.ParameterType{types.ParamValue, types.ParamValue}, cmdProxyConnect)
 }
 
 // getConnection gets or creates a network connection for a VM
@@ -131,6 +132,39 @@ func cmdDisconnect(vm types.VMInterface, params []*types.CommandParam) error {
 	vm.SetVariable("__connected", &types.Value{Type: types.NumberType, Number: 0})
 	vm.SetVariable("__connectHost", &types.Value{Type: types.StringType, String: ""})
 	vm.SetVariable("__connectPort", &types.Value{Type: types.StringType, String: ""})
+
+	return nil
+}
+
+// cmdProxyConnect initiates a proxy-level connection to a game server
+// Accepts either: PROXYCONNECT "host:port" or PROXYCONNECT host port
+func cmdProxyConnect(vm types.VMInterface, params []*types.CommandParam) error {
+	var address string
+	if len(params) == 1 {
+		address = GetParamString(vm, params[0])
+	} else if len(params) == 2 {
+		host := GetParamString(vm, params[0])
+		port := GetParamString(vm, params[1])
+		if host == "" || port == "" {
+			return vm.Error("PROXYCONNECT requires non-empty host and port")
+		}
+		address = fmt.Sprintf("%s:%s", host, port)
+	} else {
+		return vm.Error("PROXYCONNECT requires 1 or 2 parameters: \"host:port\" or host port")
+	}
+
+	if address == "" {
+		return vm.Error("PROXYCONNECT requires a non-empty address")
+	}
+
+	gameInterface := vm.GetGameInterface()
+	if gameInterface == nil {
+		return vm.Error("PROXYCONNECT: game interface not available")
+	}
+
+	if err := gameInterface.ProxyConnect(address); err != nil {
+		return vm.Error(fmt.Sprintf("PROXYCONNECT failed: %v", err))
+	}
 
 	return nil
 }

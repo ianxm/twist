@@ -6,7 +6,14 @@ import (
 	"strings"
 	"twist/internal/api"
 	"twist/internal/proxy"
+	"twist/internal/proxy/scripting"
 )
+
+// NewInitialScriptRunner creates a standalone script manager for running an initial script
+// before a proxy connection is established.
+func NewInitialScriptRunner() api.InitialScriptRunner {
+	return scripting.NewScriptManager(nil)
+}
 
 // Connect creates a new proxy instance and returns a connected ProxyAPI
 func Connect(address string, tuiAPI api.TuiAPI, options ...*api.ConnectOptions) api.ProxyAPI {

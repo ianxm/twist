@@ -68,9 +68,8 @@ func main() {
 	}
 
 	// Initialize and run the tview application
-	app := tui.NewApplication()
+	app := tui.NewApplication(scriptName)
 	app.SetVersionInfo(version, commit, date)
-	app.SetInitialScript(scriptName)
 	if err := app.Run(); err != nil {
 		fmt.Printf("Error running program: %v\n", err)
 		os.Exit(1)

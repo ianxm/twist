@@ -18,19 +18,11 @@ func NewProxyClient() *ProxyClient {
 	}
 }
 
-func (pc *ProxyClient) Connect(address string, tuiAPI coreapi.TuiAPI) error {
-	// Use static Connect function to create new ProxyAPI instance
-	// Static function never returns errors - all failures go via callbacks
-	proxyAPI := factory.Connect(address, tuiAPI)
-
-	// Store the connected API instance
-	pc.currentAPI = proxyAPI
-	return nil
-}
-
-func (pc *ProxyClient) ConnectWithScript(address string, tuiAPI coreapi.TuiAPI, scriptName string) error {
-	// Use Connect function with ConnectOptions to load initial script
-	connectOpts := &coreapi.ConnectOptions{ScriptName: scriptName}
+func (pc *ProxyClient) Connect(address string, tuiAPI coreapi.TuiAPI, opts ...*coreapi.ConnectOptions) error {
+	var connectOpts *coreapi.ConnectOptions
+	if len(opts) > 0 {
+		connectOpts = opts[0]
+	}
 	proxyAPI := factory.Connect(address, tuiAPI, connectOpts)
 
 	// Store the connected API instance

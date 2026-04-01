@@ -268,7 +268,7 @@ func SetupTestDatabase(t *testing.T, dbPath string, setupFunc func(*sql.DB)) {
 // 1. SERVER: Creates ExpectTelnetServer that runs serverScript (sends data to proxy)
 // 2. PROXY: Created via api.Connect(), may load TWX script, processes data bidirectionally
 // 3. CLIENT: Creates SimpleExpectEngine that runs clientScript (expects data from proxy, sends user input)
-func Execute(t *testing.T, serverScript, clientScript string, connectOpts *api.ConnectOptions) *ProxyResult {
+func Execute(t *testing.T, serverScript, clientScript string, connectOpts *api.ConnectOptions, twxScripts ...string) *ProxyResult {
 	// 1. SERVER: Create and start telnet server with server script
 	server := NewExpectTelnetServer(t)
 	server.SetServerScript(serverScript)
@@ -278,16 +278,20 @@ func Execute(t *testing.T, serverScript, clientScript string, connectOpts *api.C
 	}
 	defer server.Stop()
 
-	// If connectOpts contains a ScriptName that looks like script content, create a temp file
-	if connectOpts != nil && connectOpts.ScriptName != "" && !strings.HasSuffix(connectOpts.ScriptName, ".ts") {
-		// This looks like script content, not a filename - create temp file
-		scriptPath := t.TempDir() + "/temp_script.ts"
-		err := os.WriteFile(scriptPath, []byte(connectOpts.ScriptName), 0644)
-		if err != nil {
-			t.Fatalf("Failed to create temp script file: %v", err)
+	// Prepare optional TWX script as a temp file
+	var scriptPath string
+	if len(twxScripts) > 0 && twxScripts[0] != "" {
+		twxScript := twxScripts[0]
+		if !strings.HasSuffix(twxScript, ".ts") {
+			// Script content, not a filename - create temp file
+			scriptPath = t.TempDir() + "/temp_script.ts"
+			err := os.WriteFile(scriptPath, []byte(twxScript), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create temp script file: %v", err)
+			}
+		} else {
+			scriptPath = twxScript
 		}
-		// Update connectOpts to use the file path
-		connectOpts.ScriptName = scriptPath
 	}
 
 	// Handle database setup - create temporary database if no options provided
@@ -330,6 +334,13 @@ func Execute(t *testing.T, serverScript, clientScript string, connectOpts *api.C
 		// Connection successful via callback
 	case <-time.After(2 * time.Second):
 		t.Fatalf("Timeout waiting for proxy connection")
+	}
+
+	// Load TWX script after connection if provided
+	if scriptPath != "" {
+		if err := proxyInstance.LoadScript(scriptPath); err != nil {
+			t.Fatalf("Failed to load TWX script: %v", err)
+		}
 	}
 
 	// Set the input sender for client expect engine - this simulates user typing

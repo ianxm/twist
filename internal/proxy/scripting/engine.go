@@ -123,11 +123,27 @@ func (e *Engine) updateScripts(updateFn func(map[string]*Script) map[string]*Scr
 // SetOutputHandler sets the handler for output messages
 func (e *Engine) SetOutputHandler(handler func(string) error) {
 	e.outputHandler = handler
+
+	// Update all existing script VMs with the new outputHandler
+	scripts := e.getScripts()
+	for _, script := range scripts {
+		if script.VM != nil {
+			script.VM.SetOutputHandler(handler)
+		}
+	}
 }
 
 // SetEchoHandler sets the handler for echo messages
 func (e *Engine) SetEchoHandler(handler func(string) error) {
 	e.echoHandler = handler
+
+	// Update all existing script VMs with the new echoHandler
+	scripts := e.getScripts()
+	for _, script := range scripts {
+		if script.VM != nil {
+			script.VM.SetEchoHandler(handler)
+		}
+	}
 }
 
 // SetSendHandler sets the handler for send messages

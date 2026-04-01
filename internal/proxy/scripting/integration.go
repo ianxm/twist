@@ -29,6 +29,7 @@ type GameAdapter struct {
 	systemConstants *constants.SystemConstants
 	sendInput       func(string) // Function to send input (no circular dependency)
 	sendOutput      func(string) // Function to send output (no circular dependency)
+	proxyConnect    func(string) error // Function for PROXYCONNECT command
 	terminal        TerminalInterface
 	menuManager     interface{} // Terminal menu manager
 }
@@ -230,6 +231,14 @@ func (g *GameAdapter) SendCommand(cmd string) error {
 	return nil
 }
 
+// ProxyConnect implements GameInterface - initiates a proxy-level connection
+func (g *GameAdapter) ProxyConnect(address string) error {
+	if g.proxyConnect == nil {
+		return fmt.Errorf("proxy connect not available")
+	}
+	return g.proxyConnect(address)
+}
+
 // SendDirectOutput sends output directly to terminal without routing through input system
 func (g *GameAdapter) SendDirectOutput(text string) error {
 	if g.sendOutput == nil {
@@ -336,11 +345,10 @@ type DatabaseProvider interface {
 }
 
 type ScriptManager struct {
-	engine        *Engine
-	db            database.Database
-	gameAdapter   *GameAdapter
-	dbProvider    DatabaseProvider // For getting current database when needed
-	initialScript string           // Script to load automatically on connection
+	engine      *Engine
+	db          database.Database
+	gameAdapter *GameAdapter
+	dbProvider  DatabaseProvider // For getting current database when needed
 }
 
 // NewScriptManager creates a new script manager
@@ -613,20 +621,7 @@ func (sm *ScriptManager) CollectScriptInput(prompt string) (string, error) {
 	return "", fmt.Errorf("menu manager does not support script input collection")
 }
 
-// SetInitialScript sets the script to load automatically on connection
-func (sm *ScriptManager) SetInitialScript(scriptName string) {
-	sm.initialScript = scriptName
-}
-
-// GetInitialScript returns the initial script name, if any
-func (sm *ScriptManager) GetInitialScript() string {
-	return sm.initialScript
-}
-
-// LoadInitialScript loads the initial script if one is configured
-func (sm *ScriptManager) LoadInitialScript() error {
-	if sm.initialScript == "" {
-		return nil // No initial script configured
-	}
-	return sm.LoadAndRunScript(sm.initialScript)
+// SetConnectHandler sets a callback invoked by the PROXYCONNECT script command
+func (sm *ScriptManager) SetConnectHandler(handler func(address string) error) {
+	sm.gameAdapter.proxyConnect = handler
 }

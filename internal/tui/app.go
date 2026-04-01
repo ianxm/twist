@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"time"
 	coreapi "twist/internal/api"
+	"twist/internal/api/factory"
 	"twist/internal/log"
 	"twist/internal/terminal"
 	"twist/internal/theme"
@@ -58,8 +59,9 @@ type TwistApp struct {
 	// Update channels
 	terminalUpdateChan chan struct{}
 
-	// Initial script to load on connection
-	initialScript string
+	// Initial script support
+	initialScript  string
+	scriptManager  coreapi.InitialScriptRunner
 
 	// Version information
 	version string
@@ -68,7 +70,7 @@ type TwistApp struct {
 }
 
 // NewApplication creates and configures the tview application
-func NewApplication() *TwistApp {
+func NewApplication(initialScript string) *TwistApp {
 
 	// Create the main application
 	app := tview.NewApplication()
@@ -165,15 +167,58 @@ func NewApplication() *TwistApp {
 	twistApp.setupUI()
 	twistApp.setupInputHandling()
 	twistApp.registerShortcuts(registry)
-	// twistApp.startUpdateWorker() // Commented out - appears to be unused legacy code causing double redraws
 
-	// Auto-show connection dialog on startup for easy testing
-	go func() {
-		// Small delay to ensure UI is fully initialized
-		twistApp.app.QueueUpdateDraw(func() {
-			twistApp.showConnectionDialog()
+	log.Info("NewApplication", "initialScript", initialScript)
+	if initialScript != "" {
+		// Run initial script instead of showing connection dialog
+		twistApp.initialScript = initialScript
+		twistApp.scriptManager = factory.NewInitialScriptRunner()
+		twistApp.scriptManager.SetConnectHandler(func(address string) error {
+			// Called from PROXYCONNECT in the script's VM goroutine.
+			// factory.Connect blocks on net.Dial and panics on failure,
+			// so recover and return an error instead.
+			var connectErr error
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						connectErr = fmt.Errorf("%v", r)
+					}
+				}()
+				sm := twistApp.scriptManager
+				twistApp.proxyClient.Connect(address, twistApp.tuiAPI, &coreapi.ConnectOptions{
+					ScriptManager: sm,
+				})
+			}()
+			if connectErr != nil {
+				return connectErr
+			}
+			// Proxy now owns the script manager; clear our reference
+			twistApp.scriptManager = nil
+			// Wait for first server data so telnet negotiation settles
+			// before the script sends anything
+			if api := twistApp.proxyClient.GetCurrentAPI(); api != nil {
+				api.WaitForServerData()
+			}
+			return nil
 		})
-	}()
+		go func() {
+			if err := twistApp.scriptManager.LoadAndRunScript(initialScript); err != nil {
+				log.Error("Failed to run initial script", "script", initialScript, "error", err)
+				// Fall back to connection dialog
+				twistApp.app.QueueUpdateDraw(func() {
+					twistApp.scriptManager = nil
+					twistApp.showConnectionDialog()
+				})
+			}
+		}()
+	} else {
+		// Auto-show connection dialog on startup
+		go func() {
+			twistApp.app.QueueUpdateDraw(func() {
+				twistApp.showConnectionDialog()
+			})
+		}()
+	}
 
 	return twistApp
 }
@@ -417,11 +462,6 @@ func (ta *TwistApp) registerShortcuts(registry menus.MenuRegistry) {
 	}
 }
 
-// SetInitialScript sets the script to load on connection
-func (ta *TwistApp) SetInitialScript(scriptName string) {
-	ta.initialScript = scriptName
-}
-
 // SetVersionInfo sets the version information for display
 func (ta *TwistApp) SetVersionInfo(version, commit, date string) {
 	ta.version = version
@@ -455,9 +495,13 @@ func (ta *TwistApp) connect(address string) {
 		ta.closeModal()
 	}
 
-	// Use API layer exclusively - connection should be non-blocking
-	// Proxy will call HandleConnecting, then HandleConnectionEstablished/HandleConnectionError
-	if err := ta.proxyClient.ConnectWithScript(address, ta.tuiAPI, ta.initialScript); err != nil {
+	// Build connect options, passing script manager if one exists
+	var opts *coreapi.ConnectOptions
+	if ta.scriptManager != nil {
+		opts = &coreapi.ConnectOptions{ScriptManager: ta.scriptManager}
+	}
+
+	if err := ta.proxyClient.Connect(address, ta.tuiAPI, opts); err != nil {
 		// Handle immediate validation errors
 		ta.connected = false
 		ta.serverAddress = ""
@@ -465,7 +509,8 @@ func (ta *TwistApp) connect(address string) {
 		ta.statusComponent.SetConnectionStatus(false, "Connection failed: "+err.Error())
 		return
 	}
-	// Connection state will be updated via proxy callbacks
+	// Proxy now owns the script manager
+	ta.scriptManager = nil
 }
 
 // disconnect closes the connection to the game server

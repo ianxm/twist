@@ -74,6 +74,12 @@ func (p *ProxyApiImpl) IsConnected() bool {
 	return p.proxy.IsConnected()
 }
 
+func (p *ProxyApiImpl) WaitForServerData() {
+	if p.proxy != nil {
+		p.proxy.WaitForServerData()
+	}
+}
+
 func (p *ProxyApiImpl) SendData(data []byte) error {
 	if p.proxy == nil {
 		return errors.New("not connected")

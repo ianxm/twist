@@ -102,11 +102,19 @@ type ProductInfo struct {
 	Percentage int           `json:"percentage"`
 }
 
+// InitialScriptRunner is used by the TUI to run an initial script before connection.
+// The script manager implements this interface.
+type InitialScriptRunner interface {
+	SetConnectHandler(handler func(address string) error)
+	LoadAndRunScript(filename string) error
+}
+
 // ProxyAPI defines commands from TUI to Proxy
 type ProxyAPI interface {
 	// Connection Management
 	Disconnect() error
 	IsConnected() bool
+	WaitForServerData() // Blocks until first server data received
 
 	// Data Processing (symmetric with OnData)
 	SendData(data []byte) error

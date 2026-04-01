@@ -123,6 +123,9 @@ type GameInterface interface {
 	SendCommand(cmd string) error
 	GetLastOutput() string
 
+	// Proxy connection (for PROXYCONNECT command)
+	ProxyConnect(address string) error
+
 	// Script variable persistence
 	SaveScriptVariable(name string, value *Value) error
 	LoadScriptVariable(name string) (*Value, error)

@@ -82,6 +82,7 @@ type ConnectedState struct {
 	conn     net.Conn
 	reader   *bufio.Reader
 	writer   *bufio.Writer
+	writeMu  *sync.Mutex // Shared with writerFunc to protect bufio.Writer
 	pipeline *streaming.Pipeline
 
 	// Processing components - always present when connected
@@ -89,11 +90,12 @@ type ConnectedState struct {
 	gameDetector  *GameDetector
 }
 
-func NewConnectedState(conn net.Conn, reader *bufio.Reader, writer *bufio.Writer, pipeline *streaming.Pipeline, scriptManager *scripting.ScriptManager, gameDetector *GameDetector) *ConnectedState {
+func NewConnectedState(conn net.Conn, reader *bufio.Reader, writer *bufio.Writer, writeMu *sync.Mutex, pipeline *streaming.Pipeline, scriptManager *scripting.ScriptManager, gameDetector *GameDetector) *ConnectedState {
 	return &ConnectedState{
 		conn:          conn,
 		reader:        reader,
 		writer:        writer,
+		writeMu:       writeMu,
 		pipeline:      pipeline,
 		scriptManager: scriptManager,
 		gameDetector:  gameDetector,
@@ -131,6 +133,8 @@ func (s *ConnectedState) GetParser() *streaming.TWXParser {
 }
 
 func (s *ConnectedState) writeServerData(data string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	_, err := s.writer.WriteString(data)
 	if err != nil {
 		return err
@@ -198,6 +202,10 @@ type Proxy struct {
 
 	// Input handler state
 	inputHandlerStarted bool
+
+	// Signal that first server data has been received (telnet negotiation complete)
+	dataReceived     chan struct{}
+	dataReceivedOnce sync.Once
 }
 
 // State helper methods
@@ -258,8 +266,11 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 	// Create readers and writer for the connection
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
+	var writeMu sync.Mutex
 
 	writerFunc := func(data []byte) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
 		_, err := writer.Write(data)
 		if err != nil {
 			return err
@@ -275,6 +286,7 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 		tuiAPI:         tuiAPI,
 		gameDetector:   gameDetector,
 		currentAddress: address,
+		dataReceived:   make(chan struct{}),
 		currentHost:    currentHost,
 		currentPort:    currentPort,
 	}
@@ -296,8 +308,15 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 		}
 	})
 
-	// Create script manager with direct database access
-	p.scriptManager = scripting.NewScriptManager(p.db)
+	// Create or adopt script manager
+	if options.ScriptManager != nil {
+		// Adopt existing script manager (e.g., from initial script with PROXYCONNECT)
+		p.scriptManager = options.ScriptManager.(*scripting.ScriptManager)
+		p.scriptManager.SetDatabase(p.db)
+	} else {
+		// Create script manager with direct database access
+		p.scriptManager = scripting.NewScriptManager(p.db)
+	}
 
 	// Setup script manager with function injection (no circular dependency)
 	p.scriptManager.SetupConnections(p.SendInput, p.SendToTUI, nil)
@@ -320,7 +339,7 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 	pipeline := streaming.NewPipeline(p.tuiAPI, func() database.Database { return p.db }, p.scriptManager, p, p.gameDetector, writerFunc)
 
 	// Create connected state with pipeline
-	connectedState := NewConnectedState(conn, reader, writer, pipeline, p.scriptManager, p.gameDetector)
+	connectedState := NewConnectedState(conn, reader, writer, &writeMu, pipeline, p.scriptManager, p.gameDetector)
 	p.setState(connectedState)
 
 	// Start the pipeline
@@ -337,18 +356,6 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 	p.inputHandlerStarted = true
 	go p.handleInput()
 	go p.handleOutput()
-
-	// Load initial script if configured
-	if err := p.scriptManager.LoadInitialScript(); err != nil {
-		log.Error("Failed to load initial script", "error", err)
-	}
-
-	// Load optional script if provided
-	if options.ScriptName != "" {
-		if err := p.scriptManager.LoadAndRunScript(options.ScriptName); err != nil {
-			log.Error("Failed to load optional script", "script", options.ScriptName, "error", err)
-		}
-	}
 
 	return p
 }
@@ -387,6 +394,11 @@ func (p *Proxy) Disconnect() error {
 
 func (p *Proxy) IsConnected() bool {
 	return p.getState().IsConnected()
+}
+
+// WaitForServerData blocks until the first server data is received after connection.
+func (p *Proxy) WaitForServerData() {
+	<-p.dataReceived
 }
 
 func (p *Proxy) SendInput(input string) {
@@ -526,7 +538,10 @@ func (p *Proxy) handleOutput() {
 		if n > 0 {
 			rawData := buffer[:n]
 			// Send raw data directly to the streaming pipeline
+			// (this also triggers telnet negotiation responses)
 			connectedState.processServerData(rawData)
+			// Signal after processing so telnet responses have been sent
+			p.dataReceivedOnce.Do(func() { close(p.dataReceived) })
 		}
 	}
 
@@ -726,6 +741,8 @@ func (p *Proxy) onDatabaseLoaded(db database.Database, scriptManager *scripting.
 
 		// Create new pipeline with same writer function
 		writerFunc := func(data []byte) error {
+			connectedState.writeMu.Lock()
+			defer connectedState.writeMu.Unlock()
 			_, err := connectedState.writer.Write(data)
 			if err != nil {
 				return err

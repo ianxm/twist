@@ -378,7 +378,7 @@ waitfor "continue"
 echo "Wait completed"
 `
 
-	result := Execute(t, serverScript, clientScript, &api.ConnectOptions{ScriptName: twxScript})
+	result := Execute(t, serverScript, clientScript, &api.ConnectOptions{}, twxScript)
 
 	if result.Database != nil {
 		t.Error("Expected no database instance when DatabasePath not provided")

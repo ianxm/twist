@@ -35,6 +35,7 @@ func (m *MockGameInterface) GetSystemConstants() types.SystemConstantsInterface 
 func (m *MockGameInterface) LoadScriptVariable(name string) (*types.Value, error)     { return nil, nil }
 func (m *MockGameInterface) SaveScriptVariable(name string, value *types.Value) error { return nil }
 func (m *MockGameInterface) SendCommand(command string) error                         { return nil }
+func (m *MockGameInterface) ProxyConnect(address string) error                        { return nil }
 
 // MockSystemConstants for testing
 type MockSystemConstants struct{}
