@@ -141,6 +141,13 @@ type ProxyAPI interface {
 
 	// Analysis
 	GetSectorAnalysisData() ([]SectorAnalysisView, error)
+	GetSpecialPorts() ([]SpecialPort, error)
+}
+
+// SpecialPort represents a special port (class 0 or class 9)
+type SpecialPort struct {
+	Name   string `json:"name"`
+	Sector string `json:"sector"` // String so we can show "?" for unknown
 }
 
 // SectorAnalysisView is a lightweight sector representation for analysis algorithms

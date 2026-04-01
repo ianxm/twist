@@ -31,6 +31,7 @@ type Database interface {
 	DeletePort(sectorIndex int) error
 	FindPortsByClass(classIndex int) ([]TPort, error)
 	FindPortsBuying(product TProductType) ([]TPort, error)
+	FindSpecialPorts() ([]SpecialPort, error) // Returns port name → sector for special ports; class 9 keyed as "Stardock"
 
 	// TWX compatibility methods
 	GetDatabaseOpen() bool
@@ -919,6 +920,28 @@ func (d *SQLiteDatabase) FindPortsByClass(classIndex int) ([]TPort, error) {
 	}
 
 	return ports, nil
+}
+
+// FindSpecialPorts returns class 9 port first, then class 0 ports ordered by sector
+func (d *SQLiteDatabase) FindSpecialPorts() ([]SpecialPort, error) {
+	if !d.dbOpen {
+		return nil, fmt.Errorf("database not open")
+	}
+	rows, err := d.db.Query(`SELECT sector_index, name FROM ports WHERE class_index IN (0, 9) ORDER BY CASE WHEN class_index = 9 THEN 0 ELSE 1 END, sector_index`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []SpecialPort
+	for rows.Next() {
+		var sp SpecialPort
+		if err := rows.Scan(&sp.Sector, &sp.Name); err != nil {
+			return nil, err
+		}
+		result = append(result, sp)
+	}
+	return result, nil
 }
 
 // FindPortsBuying finds all ports buying a specific product

@@ -30,6 +30,12 @@ func NewViewMenu() Menu {
 				IsEnabled:    isConnectedCheck,
 				HandleAction: handlePairedPorts,
 			},
+			{
+				Name:         "Special Ports",
+				CreatesModal: true,
+				IsEnabled:    isConnectedCheck,
+				HandleAction: handleSpecialPorts,
+			},
 		},
 	}
 }
@@ -157,5 +163,39 @@ func handlePairedPorts(app AppInterface) error {
 	}
 
 	app.ShowScrollableModal("Paired Ports", text, 52, contentHeight)
+	return nil
+}
+
+func handleSpecialPorts(app AppInterface) error {
+	proxyAPI := app.GetProxyAPI()
+	if proxyAPI == nil {
+		app.ShowModal("Special Ports", "Not connected.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	ports, err := proxyAPI.GetSpecialPorts()
+	if err != nil {
+		app.ShowModal("Special Ports", fmt.Sprintf("Error: %v", err), []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	if len(ports) == 0 {
+		app.ShowModal("Special Ports", "No special ports found.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	text := " ┌────────┬─────────────────────┐\n"
+	text += " │ Sector │ Port                │\n"
+	text += " ├────────┼─────────────────────┤\n"
+	for _, p := range ports {
+		text += fmt.Sprintf(" │ %6s │ %-19s │\n", p.Sector, p.Name)
+	}
+	text += " └────────┴─────────────────────┘"
+
+	app.ShowModal("Special Ports", text, []string{"Close"},
+		func(buttonIndex int, buttonLabel string) { app.CloseModal() })
 	return nil
 }

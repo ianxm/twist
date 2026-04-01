@@ -2,6 +2,12 @@ package database
 
 import "time"
 
+// SpecialPort represents a class 0 or class 9 port
+type SpecialPort struct {
+	Sector int
+	Name   string
+}
+
 // Enums matching TWX exactly
 
 // TFighterType matches TWX TFighterType

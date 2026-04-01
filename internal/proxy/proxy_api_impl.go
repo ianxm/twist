@@ -337,3 +337,10 @@ func (p *ProxyApiImpl) GetSectorAnalysisData() ([]api.SectorAnalysisView, error)
 	}
 	return p.proxy.db.GetAllSectorAnalysisData()
 }
+
+func (p *ProxyApiImpl) GetSpecialPorts() ([]api.SpecialPort, error) {
+	if p.proxy == nil {
+		return nil, errors.New("not connected")
+	}
+	return p.proxy.GetSpecialPorts()
+}

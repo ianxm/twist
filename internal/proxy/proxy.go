@@ -605,6 +605,21 @@ func (p *Proxy) GetSectorAnalysisData() ([]api.SectorAnalysisView, error) {
 	return p.db.GetAllSectorAnalysisData()
 }
 
+func (p *Proxy) GetSpecialPorts() ([]api.SpecialPort, error) {
+	if p.db == nil {
+		return nil, errors.New("no database loaded")
+	}
+	found, err := p.db.FindSpecialPorts()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]api.SpecialPort, len(found))
+	for i, sp := range found {
+		result[i] = api.SpecialPort{Name: sp.Name, Sector: fmt.Sprintf("%d", sp.Sector)}
+	}
+	return result, nil
+}
+
 // LoadScript loads a script from file
 func (p *Proxy) LoadScript(filename string) error {
 	return p.scriptManager.LoadAndRunScript(filename)

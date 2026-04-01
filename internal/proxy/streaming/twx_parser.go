@@ -1464,6 +1464,13 @@ func (p *TWXParser) processPortCIMLine(line string) {
 	// Determine port class from buy/sell pattern (mirrors Pascal port class logic)
 	portClass := p.determinePortClassFromPattern(buyOre, buyOrg, buyEquip)
 
+	// Preserve special port classes (0 and 9) if already set in database
+	if db := p.GetDatabase(); db != nil {
+		if existing, err := db.LoadPort(sectorNum); err == nil && existing.Name != "" && (existing.ClassIndex == 0 || existing.ClassIndex == 9) {
+			portClass = existing.ClassIndex
+		}
+	}
+
 	// Store enhanced port CIM data to database
 	p.storePortCIMData(sectorNum, oreAmount, orePercent, buyOre,
 		orgAmount, orgPercent, buyOrg, equipAmount, equipPercent, buyEquip, portClass)

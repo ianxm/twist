@@ -972,7 +972,7 @@ func (p *TWXParser) handleSectorPorts(line string) {
 	portName := strings.TrimSpace(portInfo[:classPos])
 
 	// Extract class number (Pascal: StrToIntSafe(Copy(Line, Pos(', Class', Line) + 8, 1)))
-	classNum := 0
+	classNum := -1
 	if classPos+8 < len(portInfo) {
 		classStr := string(portInfo[classPos+8])
 		classNum = p.parseIntSafe(classStr)
@@ -997,7 +997,7 @@ func (p *TWXParser) handleSectorPorts(line string) {
 	}
 
 	// Determine port class from buy/sell pattern if not explicit (mirrors Pascal logic)
-	if classNum == 0 {
+	if classNum < 0 {
 		classNum = p.determinePortClassFromPattern(buyOre, buyOrg, buyEquip)
 	}
 
