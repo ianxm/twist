@@ -176,6 +176,11 @@ func (p *Pipeline) SendTelnetNegotiation() error {
 	return p.telnetHandler.SendInitialNegotiation()
 }
 
+// EchoSettled returns a channel that is closed when ECHO negotiation completes.
+func (p *Pipeline) EchoSettled() <-chan struct{} {
+	return p.telnetHandler.EchoSettled()
+}
+
 // GetMetrics returns pipeline performance metrics
 func (p *Pipeline) GetMetrics() (bytesProcessed, batchesProcessed uint64) {
 	return p.bytesProcessed, p.batchesProcessed

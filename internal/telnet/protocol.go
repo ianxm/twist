@@ -1,6 +1,8 @@
 package telnet
 
-import ()
+import (
+	"sync"
+)
 
 // Telnet command constants
 const (
@@ -25,6 +27,10 @@ const (
 type Handler struct {
 	writer func([]byte) error
 
+	// ECHO negotiation state
+	echoSettled     chan struct{} // closed when ECHO negotiation completes
+	echoSettledOnce sync.Once
+
 	// SAUCE detection state
 	sauceBuffer []byte
 	sauceTarget []byte
@@ -34,6 +40,7 @@ type Handler struct {
 func NewHandler(writer func([]byte) error) *Handler {
 	return &Handler{
 		writer:      writer,
+		echoSettled: make(chan struct{}),
 		sauceTarget: []byte{0x1A, 'S', 'A', 'U', 'C', 'E', '0', '0'},
 	}
 }
@@ -62,6 +69,12 @@ func (h *Handler) SendInitialNegotiation() error {
 	}
 
 	return nil
+}
+
+// EchoSettled returns a channel that is closed when ECHO negotiation completes
+// (either WILL ECHO or WONT ECHO received from server).
+func (h *Handler) EchoSettled() <-chan struct{} {
+	return h.echoSettled
 }
 
 // ProcessData filters telnet commands from incoming data and returns clean text
@@ -190,8 +203,10 @@ func (h *Handler) handleNegotiation(cmd byte, option byte) {
 	case WILL: // Server will enable option
 		switch option {
 		case ECHO:
-			// Good, server will handle echo
-			response = []byte{IAC, DO, ECHO}
+			// Server confirms it will handle echo. We already sent DO ECHO in
+			// SendInitialNegotiation, so don't send it again — some servers
+			// may interpret a duplicate DO as a toggle request.
+			h.echoSettledOnce.Do(func() { close(h.echoSettled) })
 		case SUPPRESS_GO_AHEAD:
 			// Good, server will suppress go ahead
 			response = []byte{IAC, DO, SUPPRESS_GO_AHEAD}
@@ -203,6 +218,9 @@ func (h *Handler) handleNegotiation(cmd byte, option byte) {
 	case WONT: // Server won't enable option
 		// Acknowledge
 		response = []byte{IAC, DONT, option}
+		if option == ECHO {
+			h.echoSettledOnce.Do(func() { close(h.echoSettled) })
+		}
 	}
 
 	if response != nil {

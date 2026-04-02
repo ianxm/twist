@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 
 	"twist/internal/api"
 	"twist/internal/log"
@@ -202,10 +203,6 @@ type Proxy struct {
 
 	// Input handler state
 	inputHandlerStarted bool
-
-	// Signal that first server data has been received (telnet negotiation complete)
-	dataReceived     chan struct{}
-	dataReceivedOnce sync.Once
 }
 
 // State helper methods
@@ -286,7 +283,6 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 		tuiAPI:         tuiAPI,
 		gameDetector:   gameDetector,
 		currentAddress: address,
-		dataReceived:   make(chan struct{}),
 		currentHost:    currentHost,
 		currentPort:    currentPort,
 	}
@@ -396,9 +392,16 @@ func (p *Proxy) IsConnected() bool {
 	return p.getState().IsConnected()
 }
 
-// WaitForServerData blocks until the first server data is received after connection.
+// WaitForServerData blocks until telnet ECHO negotiation has settled
+// (or a short timeout expires if the server never negotiates ECHO).
 func (p *Proxy) WaitForServerData() {
-	<-p.dataReceived
+	state := p.getState()
+	if cs, ok := state.(*ConnectedState); ok && cs.pipeline != nil {
+		select {
+		case <-cs.pipeline.EchoSettled():
+		case <-time.After(2 * time.Second):
+		}
+	}
 }
 
 func (p *Proxy) SendInput(input string) {
@@ -540,8 +543,6 @@ func (p *Proxy) handleOutput() {
 			// Send raw data directly to the streaming pipeline
 			// (this also triggers telnet negotiation responses)
 			connectedState.processServerData(rawData)
-			// Signal after processing so telnet responses have been sent
-			p.dataReceivedOnce.Do(func() { close(p.dataReceived) })
 		}
 	}
 
