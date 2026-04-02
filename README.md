@@ -1,6 +1,6 @@
 # Twist - Trade Wars 2002 TUI
 
-A modern text UI (TUI) client helper for Trade Wars 2002, featuring real-time game info, TWX-compatible 
+A modern text UI (TUI) client helper for Trade Wars 2002, featuring real-time game info, TWX-compatible
 scripting, and an interactive terminal interface.
 
 <img src="docs/2025-08-18_00-19.png" alt="Twist Interface" width="800">
@@ -16,16 +16,17 @@ scripting, and an interactive terminal interface.
 
 - **Real-time Game Parsing**: Automatically parses Trade Wars 2002 game data including sectors, traders, ships, and ports
 - **Interactive Terminal UI**: Clean terminal interface with sector maps, trader info, and game statistics
-- **Scripting Engine**: Supports custom TWX-based scripts for game automation
-- **Database Integration**: Stores game data with SQLite for persistence
-- **Sector Mapping**: Visual sector map with warp connections and hazard indicators
-- **Multi-game Support**: Works with various Trade Wars 2002 servers and game types
+- **Scripting Engine**: Supports custom TWX-based scripts for game automation, including auto-login via initial scripts
+- **Database Integration**: Stores game data with SQLite for persistence, with automatic per-server per-game database selection
+- **Sector Mapping**: Visual sector map with warp connections and hazard indicators (text-based, with optional graphviz/sixel rendering)
+- **Analysis Tools**: Bubble finder, pair finder, and special port listing for strategic planning
+- **Terminal Compatibility**: Works best with sixel-capable terminals (Konsole, bobcat, hterm); falls back to text-based rendering otherwise
 
 ## Quick Start
 
 ### Prerequisites
 
-- Go 1.19 or later
+- Go 1.24 or later
 - Make (for build automation)
 
 ### Building
@@ -43,19 +44,40 @@ make test
 ### Usage
 
 ```bash
-./twist [options]
+# Launch with connection dialog
+./bin/twist
+
+# Launch with an initial script (e.g., auto-login)
+./bin/twist login.ts
 ```
+
+When an initial script is provided, it runs before connecting. Use the `PROXYCONNECT` command
+in the script to establish the server connection:
+
+```
+PROXYCONNECT "hostname:port"
+waitfor "Login: "
+send username "*"
+```
+
+Without a script, Twist shows a connection dialog on startup.
 
 ## Development
 
 ### Building and Testing
 
 ```bash
-# Build and run the application
+# Build and run with the default login script
 make run
+
+# Run in development mode (no build step)
+make dev
 
 # Run all tests
 make test
+
+# Run integration tests only
+make test-integration
 ```
 
 ## Based on TWX Proxy
