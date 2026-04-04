@@ -51,11 +51,11 @@ make test
 ./bin/twist login.ts
 ```
 
-When an initial script is provided, it runs before connecting. Use the `PROXYCONNECT` command
+When an initial script is provided, it runs before connecting. Use the `CONNECT` command
 in the script to establish the server connection:
 
 ```
-PROXYCONNECT "hostname:port"
+CONNECT "hostname:port"
 waitfor "Login: "
 send username "*"
 ```

@@ -29,7 +29,8 @@ type GameAdapter struct {
 	systemConstants *constants.SystemConstants
 	sendInput       func(string) // Function to send input (no circular dependency)
 	sendOutput      func(string) // Function to send output (no circular dependency)
-	proxyConnect    func(string) error // Function for PROXYCONNECT command
+	connectHandler    func(string) error // Function for CONNECT command
+	disconnectHandler func() error       // Function for DISCONNECT command
 	terminal        TerminalInterface
 	menuManager     interface{} // Terminal menu manager
 }
@@ -231,12 +232,20 @@ func (g *GameAdapter) SendCommand(cmd string) error {
 	return nil
 }
 
-// ProxyConnect implements GameInterface - initiates a proxy-level connection
-func (g *GameAdapter) ProxyConnect(address string) error {
-	if g.proxyConnect == nil {
-		return fmt.Errorf("proxy connect not available")
+// Connect implements GameInterface - initiates a connection to the game server
+func (g *GameAdapter) Connect(address string) error {
+	if g.connectHandler == nil {
+		return fmt.Errorf("connect handler not available")
 	}
-	return g.proxyConnect(address)
+	return g.connectHandler(address)
+}
+
+// Disconnect implements GameInterface - disconnects from the game server
+func (g *GameAdapter) Disconnect() error {
+	if g.disconnectHandler == nil {
+		return fmt.Errorf("disconnect handler not available")
+	}
+	return g.disconnectHandler()
 }
 
 // SendDirectOutput sends output directly to terminal without routing through input system
@@ -621,7 +630,12 @@ func (sm *ScriptManager) CollectScriptInput(prompt string) (string, error) {
 	return "", fmt.Errorf("menu manager does not support script input collection")
 }
 
-// SetConnectHandler sets a callback invoked by the PROXYCONNECT script command
+// SetConnectHandler sets a callback invoked by the CONNECT script command
 func (sm *ScriptManager) SetConnectHandler(handler func(address string) error) {
-	sm.gameAdapter.proxyConnect = handler
+	sm.gameAdapter.connectHandler = handler
+}
+
+// SetDisconnectHandler sets a callback invoked by the DISCONNECT script command
+func (sm *ScriptManager) SetDisconnectHandler(handler func() error) {
+	sm.gameAdapter.disconnectHandler = handler
 }

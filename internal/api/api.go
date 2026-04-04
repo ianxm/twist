@@ -106,6 +106,7 @@ type ProductInfo struct {
 // The script manager implements this interface.
 type InitialScriptRunner interface {
 	SetConnectHandler(handler func(address string) error)
+	SetDisconnectHandler(handler func() error)
 	LoadAndRunScript(filename string) error
 }
 

@@ -174,7 +174,7 @@ func NewApplication(initialScript string) *TwistApp {
 		twistApp.initialScript = initialScript
 		twistApp.scriptManager = factory.NewInitialScriptRunner()
 		twistApp.scriptManager.SetConnectHandler(func(address string) error {
-			// Called from PROXYCONNECT in the script's VM goroutine.
+			// Called from CONNECT in the script's VM goroutine.
 			// factory.Connect blocks on net.Dial and panics on failure,
 			// so recover and return an error instead.
 			var connectErr error
@@ -199,6 +199,10 @@ func NewApplication(initialScript string) *TwistApp {
 			if api := twistApp.proxyClient.GetCurrentAPI(); api != nil {
 				api.WaitForServerData()
 			}
+			return nil
+		})
+		twistApp.scriptManager.SetDisconnectHandler(func() error {
+			twistApp.disconnect()
 			return nil
 		})
 		go func() {
@@ -413,6 +417,8 @@ func (ta *TwistApp) animatePanels(show bool) {
 		} else if !show && ta.sixelLayer != nil {
 			// Clear sixel regions when panels are hidden
 			ta.sixelLayer.ClearAllRegions()
+			// Force tview to redraw after the sixel clear wiped the screen
+			ta.app.QueueUpdateDraw(func() {})
 		}
 	}()
 }

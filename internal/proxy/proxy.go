@@ -306,7 +306,7 @@ func New(conn net.Conn, address string, tuiAPI api.TuiAPI, options *api.ConnectO
 
 	// Create or adopt script manager
 	if options.ScriptManager != nil {
-		// Adopt existing script manager (e.g., from initial script with PROXYCONNECT)
+		// Adopt existing script manager (e.g., from initial script with CONNECT)
 		p.scriptManager = options.ScriptManager.(*scripting.ScriptManager)
 		p.scriptManager.SetDatabase(p.db)
 	} else {
