@@ -522,6 +522,11 @@ func (p *TWXParser) ProcessInBound(data string) {
 
 		// p.FireAutoTextEvent(p.currentLine, false)
 
+		// Process prompt handlers BEFORE firing script events so that game state
+		// (e.g. CURRENTSECTOR from the command prompt) is updated before scripts
+		// can read it. This matches Pascal TWX ordering: ProcessPrompt then TextEvent.
+		p.processPrompt(p.currentLine)
+
 		// Process partial line for prompts (key TWX feature!)
 		// if this is a complete prompt send it to ProcessTextLine, else send it to ProcessText
 		match := promptPattern.MatchString(line)
@@ -533,7 +538,6 @@ func (p *TWXParser) ProcessInBound(data string) {
 			log.Debug("ProcessInBound partial line", "line", line)
 			p.FireTextEvent(line, false)
 		}
-		p.processPrompt(p.currentLine)
 	}
 }
 
