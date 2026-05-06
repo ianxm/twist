@@ -2221,6 +2221,9 @@ func (p *TWXParser) sectorCompleted() {
 				}
 			}
 		}
+	} else if p.portTracker != nil {
+		// No port line was seen during sector display — remove stale port record if any
+		p.GetDatabase().DeletePort(p.currentSectorIndex)
 	}
 
 	// Phase 4.5: Sector data and warps saved via tracker execution
