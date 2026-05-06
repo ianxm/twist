@@ -173,6 +173,13 @@ type PairInfo struct {
 	Distance int `json:"distance"`
 }
 
+// NearbyPortInfo describes a port found near the player's current sector
+type NearbyPortInfo struct {
+	Sector   int `json:"sector"`
+	Class    int `json:"class"`
+	Distance int `json:"distance"`
+}
+
 // TuiAPI defines notifications from Proxy to TUI
 //
 // CRITICAL: All methods must return immediately (within microseconds) to avoid

@@ -19,22 +19,28 @@ func NewViewMenu() Menu {
 				HandleAction: handlePanels,
 			},
 			{
-				Name:         "Bubbles",
-				CreatesModal: true,
-				IsEnabled:    isConnectedCheck,
-				HandleAction: handleBubbles,
-			},
-			{
 				Name:         "Paired Ports",
 				CreatesModal: true,
 				IsEnabled:    isConnectedCheck,
 				HandleAction: handlePairedPorts,
 			},
 			{
+				Name:         "Nearby Ports",
+				CreatesModal: true,
+				IsEnabled:    isConnectedCheck,
+				HandleAction: handleNearbyPorts,
+			},
+			{
 				Name:         "Special Ports",
 				CreatesModal: true,
 				IsEnabled:    isConnectedCheck,
 				HandleAction: handleSpecialPorts,
+			},
+			{
+				Name:         "Bubbles",
+				CreatesModal: true,
+				IsEnabled:    isConnectedCheck,
+				HandleAction: handleBubbles,
 			},
 		},
 	}
@@ -197,5 +203,58 @@ func handleSpecialPorts(app AppInterface) error {
 
 	app.ShowModal("Special Ports", text, []string{"Close"},
 		func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+	return nil
+}
+
+func handleNearbyPorts(app AppInterface) error {
+	proxyAPI := app.GetProxyAPI()
+	if proxyAPI == nil {
+		app.ShowModal("Nearby Ports", "Not connected.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	currentSector, err := proxyAPI.GetCurrentSector()
+	if err != nil || currentSector == 0 {
+		app.ShowModal("Nearby Ports", "Current sector unknown.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	sectors, err := proxyAPI.GetSectorAnalysisData()
+	if err != nil {
+		app.ShowModal("Nearby Ports", fmt.Sprintf("Error: %v", err), []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	ports := analysis.FindNearbyPorts(sectors, currentSector)
+
+	var text string
+	if len(ports) == 0 {
+		text = fmt.Sprintf(" No ports found near sector %d.\n", currentSector)
+	} else {
+		text = fmt.Sprintf(" Ports near sector %d\n\n", currentSector)
+		text += " ┌────────┬───────┬──────┐\n"
+		text += " │ Sector │ Class │ Dist │\n"
+		text += " ├────────┼───────┼──────┤\n"
+		for _, p := range ports {
+			c := api.PortClass(p.Class).String()
+			text += fmt.Sprintf(" │ %6d │  %s  │ %4d │\n", p.Sector, c, p.Distance)
+		}
+		text += " └────────┴───────┴──────┘"
+	}
+
+	contentHeight := len(ports) + 11
+	termHeight := app.GetTerminalHeight()
+	maxHeight := termHeight - 6
+	if contentHeight > maxHeight {
+		contentHeight = maxHeight
+	}
+	if contentHeight < 8 {
+		contentHeight = 8
+	}
+
+	app.ShowScrollableModal("Nearby Ports", text, 30, contentHeight)
 	return nil
 }
