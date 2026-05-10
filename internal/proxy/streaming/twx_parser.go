@@ -26,6 +26,7 @@ const (
 	DisplayPortCR
 	DisplayWarpCIM
 	DisplayFigScan
+	DisplayCIMPath
 )
 
 // SectorPosition tracks what part of sector data we're parsing
@@ -236,6 +237,7 @@ type TWXParser struct {
 
 	// Current game data
 	currentSectorWarps [6]int // Temporary storage for parsed warps
+	cimPathSectors     []int  // Accumulated sectors from CIM path (FM/TO) output
 	currentMessage     string
 	currentChannel     int // Current radio channel for message context
 	twgsVer            string
@@ -622,6 +624,8 @@ func (p *TWXParser) processLine(line string) {
 		p.processWarpLine(line)
 	case DisplayCIM, DisplayPortCIM, DisplayWarpCIM:
 		p.processCIMLine(line)
+	case DisplayCIMPath:
+		p.processCIMPathLine(line)
 	case DisplayDensity:
 		// Phase 2: Density data now handled through straight-sql trackers
 		p.processDensityLineTracker(line)
@@ -896,6 +900,9 @@ func (p *TWXParser) handleCIMPrompt(line string) {
 	if !strings.HasPrefix(line, ": ") {
 		return // Don't trigger for lines like "Probe entering sector : 274"
 	}
+
+	// Flush any accumulated CIM path data
+	p.flushCIMPath()
 
 	// Pascal: // begin CIM download
 	// Pascal: FCurrentDisplay := dCIM;
@@ -1332,7 +1339,13 @@ func (p *TWXParser) processCIMLine(line string) {
 
 	// CIM lines always start with a digit (sector number).
 	// Non-numeric lines (e.g. "Docking...") mean CIM mode has ended.
+	// Exception: "FM > " starts a CIM path query.
 	if line[0] < '0' || line[0] > '9' {
+		if strings.HasPrefix(line, "FM > ") {
+			p.cimPathSectors = nil
+			p.currentDisplay = DisplayCIMPath
+			return
+		}
 		p.currentDisplay = DisplayNone
 		p.checkPatterns(line)
 		return
@@ -1411,6 +1424,101 @@ func (p *TWXParser) processWarpCIMLine(line string) {
 		return
 	}
 
+}
+
+// processCIMPathLine handles lines during CIM path output (FM/TO queries).
+// Format: "17282 > (15925) > (29639) > ..." with continuation lines starting with space.
+// "  TO > 24751" is the destination header (ignored).
+// "ENDINTERROG" or non-path lines end path mode.
+func (p *TWXParser) processCIMPathLine(line string) {
+	// TO line — ignore
+	if strings.HasPrefix(strings.TrimSpace(line), "TO >") {
+		return
+	}
+
+	// ENDINTERROG ends CIM mode entirely
+	if strings.TrimSpace(line) == "ENDINTERROG" {
+		p.flushCIMPath()
+		p.currentDisplay = DisplayNone
+		return
+	}
+
+	// Path lines contain " > " separators. Parse sector numbers from them.
+	if !strings.Contains(line, ">") {
+		// Not a path line — flush and exit path mode
+		p.flushCIMPath()
+		p.currentDisplay = DisplayNone
+		p.checkPatterns(line)
+		return
+	}
+
+	parts := strings.Split(line, ">")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		part = strings.ReplaceAll(part, "(", "")
+		part = strings.ReplaceAll(part, ")", "")
+		part = strings.TrimSpace(part)
+		if sectorNum := p.parseIntSafe(part); sectorNum > 0 {
+			p.cimPathSectors = append(p.cimPathSectors, sectorNum)
+		}
+	}
+}
+
+// flushCIMPath saves warp connections for each consecutive pair in the accumulated path.
+func (p *TWXParser) flushCIMPath() {
+	if len(p.cimPathSectors) < 2 {
+		p.cimPathSectors = nil
+		return
+	}
+
+	for i := 0; i < len(p.cimPathSectors)-1; i++ {
+		from := p.cimPathSectors[i]
+		to := p.cimPathSectors[i+1]
+		p.addCIMPathWarp(from, to)
+	}
+	p.cimPathSectors = nil
+}
+
+// addCIMPathWarp ensures sector 'from' has a warp to sector 'to' in the database.
+func (p *TWXParser) addCIMPathWarp(from, to int) {
+	sector, err := p.GetDatabase().LoadSector(from)
+	if err != nil {
+		sector = database.NULLSector()
+	}
+
+	// Check if warp already exists
+	for _, w := range sector.Warp {
+		if w == to {
+			return
+		}
+	}
+
+	// Find insertion position (maintain sorted order)
+	insertPos := -1
+	for i, w := range sector.Warp {
+		if w == 0 || w > to {
+			insertPos = i
+			break
+		}
+	}
+
+	if insertPos < 0 || insertPos >= 6 {
+		return // No room
+	}
+
+	// Shift existing warps right
+	for i := 5; i > insertPos; i-- {
+		sector.Warp[i] = sector.Warp[i-1]
+	}
+	sector.Warp[insertPos] = to
+
+	if sector.Explored == database.EtNo {
+		sector.Explored = database.EtCalc
+		sector.Constellation = "??? (warp calc only)"
+	}
+	sector.UpDate = time.Now()
+
+	p.GetDatabase().SaveSector(sector, from)
 }
 
 // processPortCIMLine processes port CIM data (mirrors Pascal ProcessCIMLine lines 570-611)
