@@ -90,13 +90,13 @@ func handleBubbles(app AppInterface) error {
 		text = " No bubbles (size ≥ 2) found in explored sectors.\n"
 	} else {
 		text = fmt.Sprintf(" Found %d bubble(s)\n\n", len(filtered))
-		text += " ┌─────────┬──────┐\n"
-		text += " │ Gateway │ Size │\n"
-		text += " ├─────────┼──────┤\n"
+		text += " ┌─────────┬───────┬──────┐\n"
+		text += " │ Gateway │ First │ Size │\n"
+		text += " ├─────────┼───────┼──────┤\n"
 		for _, b := range filtered {
-			text += fmt.Sprintf(" │ %7d │ %4d │\n", b.GatewaySector, b.Size)
+			text += fmt.Sprintf(" │ %7d │ %5d │ %4d │\n", b.GatewaySector, b.FirstSector, b.Size)
 		}
-		text += " └─────────┴──────┘"
+		text += " └─────────┴───────┴──────┘"
 	}
 
 	contentHeight := len(filtered) + 11
@@ -109,7 +109,7 @@ func handleBubbles(app AppInterface) error {
 		contentHeight = 8
 	}
 
-	app.ShowScrollableModal("Bubbles", text, 24, contentHeight)
+	app.ShowScrollableModal("Bubbles", text, 32, contentHeight)
 	return nil
 }
 

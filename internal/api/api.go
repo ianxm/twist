@@ -162,6 +162,7 @@ type SectorAnalysisView struct {
 type BubbleInfo struct {
 	Size          int `json:"size"`
 	GatewaySector int `json:"gateway_sector"`
+	FirstSector   int `json:"first_sector"`
 }
 
 // PairInfo describes a pair of adjacent trading ports with complementary classes

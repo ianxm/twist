@@ -5,7 +5,7 @@ import (
 	"twist/internal/api"
 )
 
-const maxBubble = 5
+const maxBubble = 10
 
 // Internal node used during bubble detection
 type node struct {
@@ -106,6 +106,7 @@ func FindBubbles(sectors []api.SectorAnalysisView) []api.BubbleInfo {
 			bubbles = append(bubbles, api.BubbleInfo{
 				Size:          len(filled),
 				GatewaySector: perimNode.number,
+				FirstSector:   current.number,
 			})
 		}
 	}
