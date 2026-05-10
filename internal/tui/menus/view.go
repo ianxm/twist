@@ -37,6 +37,12 @@ func NewViewMenu() Menu {
 				HandleAction: handleSpecialPorts,
 			},
 			{
+				Name:         "Explore Paths",
+				CreatesModal: true,
+				IsEnabled:    isConnectedCheck,
+				HandleAction: handleExplorePaths,
+			},
+			{
 				Name:         "Bubbles",
 				CreatesModal: true,
 				IsEnabled:    isConnectedCheck,
@@ -54,6 +60,58 @@ func handlePanels(app AppInterface) error {
 		app.ShowPanels()
 		log.Info("ViewMenu: Showing panels")
 	}
+	return nil
+}
+
+func handleExplorePaths(app AppInterface) error {
+	proxyAPI := app.GetProxyAPI()
+	if proxyAPI == nil {
+		app.ShowModal("Explore Paths", "Not connected.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	currentSector, err := proxyAPI.GetCurrentSector()
+	if err != nil || currentSector == 0 {
+		app.ShowModal("Explore Paths", "Current sector unknown.", []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	sectors, err := proxyAPI.GetSectorAnalysisData()
+	if err != nil {
+		app.ShowModal("Explore Paths", fmt.Sprintf("Error: %v", err), []string{"Close"},
+			func(buttonIndex int, buttonLabel string) { app.CloseModal() })
+		return nil
+	}
+
+	paths := analysis.FindExplorePaths(sectors, currentSector)
+
+	var text string
+	if len(paths) == 0 {
+		text = fmt.Sprintf(" No unexplored frontier sectors reachable from sector %d.\n", currentSector)
+	} else {
+		text = fmt.Sprintf(" Top exploration targets from sector %d\n\n", currentSector)
+		text += " ┌────────┬────────────┬──────┐\n"
+		text += " │ Sector │ Unexplored │ Dist │\n"
+		text += " ├────────┼────────────┼──────┤\n"
+		for _, p := range paths {
+			text += fmt.Sprintf(" │ %6d │ %10d │ %4d │\n", p.Sector, p.Unexplored, p.Distance)
+		}
+		text += " └────────┴────────────┴──────┘"
+	}
+
+	contentHeight := len(paths) + 11
+	termHeight := app.GetTerminalHeight()
+	maxHeight := termHeight - 6
+	if contentHeight > maxHeight {
+		contentHeight = maxHeight
+	}
+	if contentHeight < 8 {
+		contentHeight = 8
+	}
+
+	app.ShowScrollableModal("Explore Paths", text, 36, contentHeight)
 	return nil
 }
 

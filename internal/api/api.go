@@ -156,6 +156,7 @@ type SectorAnalysisView struct {
 	Number    int   `json:"number"`
 	Warps     []int `json:"warps"`
 	PortClass int   `json:"port_class"`
+	Explored  int   `json:"explored"` // 0=no, 1=calc, 2=density, 3=holo (visited)
 }
 
 // BubbleInfo describes a bubble — a small cluster of sectors with a single gateway
@@ -179,6 +180,13 @@ type NearbyPortInfo struct {
 	Sector   int `json:"sector"`
 	Class    int `json:"class"`
 	Distance int `json:"distance"`
+}
+
+// ExplorePathInfo describes a frontier sector ranked by unexplored sectors on the path
+type ExplorePathInfo struct {
+	Sector     int `json:"sector"`
+	Unexplored int `json:"unexplored"`
+	Distance   int `json:"distance"`
 }
 
 // TuiAPI defines notifications from Proxy to TUI
