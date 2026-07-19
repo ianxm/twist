@@ -42,6 +42,10 @@ type TerminalView struct {
 	// Synchronization
 	mutex sync.RWMutex
 
+	// Display size tracking (set by Draw, read by Write for dynamic resize)
+	lastDrawWidth  int
+	lastDrawHeight int
+
 	// Callbacks
 	changedFunc func()
 	keyHandler  func(*tcell.EventKey) *tcell.EventKey
@@ -71,7 +75,7 @@ func NewTerminalView() *TerminalView {
 
 	// Set up standard tview component styling like TextView
 	tv.SetBorder(false)             // Start with no border, can be enabled via SetBorder()
-	tv.SetBorderPadding(1, 1, 1, 1) // Default padding: 1 row top/bottom, 1 column left/right
+	tv.SetBorderPadding(0, 0, 0, 0) // No padding - terminal emulator uses all available columns
 
 	// Create wrapper with theme colors
 	tv.wrapper = tview.NewFlex().SetDirection(tview.FlexRow).
@@ -139,6 +143,11 @@ func (tv *TerminalView) resizeBuffer(width, height int) {
 func (tv *TerminalView) Write(p []byte) (n int, err error) {
 	tv.mutex.Lock()
 	defer tv.mutex.Unlock()
+
+	// Sync buffer width to actual display width if it changed
+	if tv.lastDrawWidth > 0 && tv.lastDrawWidth != tv.width {
+		tv.resizeBuffer(tv.lastDrawWidth, tv.height)
+	}
 
 	// Process the data through ANSI sequence handling instead of just appending
 	tv.processDataWithANSI(p)
@@ -393,12 +402,17 @@ func (tv *TerminalView) Draw(screen tcell.Screen) {
 	tv.Box.DrawForSubclass(screen, tv)
 	x, y, width, height := tv.GetInnerRect()
 
+	// Track actual display dimensions for buffer sizing.
+	// Store them so Write() can pick up the new size.
+	if width > 0 && height > 0 {
+		tv.lastDrawWidth = width
+		tv.lastDrawHeight = height
+	}
+
 	// If we have no content, just show empty terminal
 	if len(tv.lines) == 0 {
 		return
 	}
-
-	// Debug: show what the first few lines actually contain
 
 	// Note: Auto-scroll logic moved to Write() method to avoid interfering with cursor positioning
 
