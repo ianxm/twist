@@ -112,8 +112,9 @@ func (p *TWXParser) handleQuickStatsLine(line string) {
 	if strings.Contains(content, "│") {
 		values = strings.Split(content, "│")
 	} else {
-		// No recognized separator found - might be ship line or other format
-		return
+		// No separator - treat the entire content as a single key-value entry
+		// This handles the case where Ship info is on its own line: " Ship 11 CorFla"
+		values = []string{content}
 	}
 
 	// Process each key-value pair
